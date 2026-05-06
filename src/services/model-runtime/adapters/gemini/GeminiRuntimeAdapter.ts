@@ -201,7 +201,7 @@ export class GeminiRuntimeAdapter implements RuntimeProviderAdapter {
     const result = applyQuirkPolicy(input.body, input.capabilities)
 
     // Preserve existing model or set from capabilities
-    if (!('model' in result) || result.model === undefined || result.model === '') {
+    if (!('model' in result) || !isUsableString(result.model)) {
       result.model = input.capabilities.model.resolvedApiName
     }
 
@@ -229,8 +229,11 @@ export class GeminiRuntimeAdapter implements RuntimeProviderAdapter {
       lowerMessage.includes('unauthorized') ||
       lowerMessage.includes('forbidden') ||
       lowerMessage.includes('invalid api key') ||
-      (lowerMessage.includes('api key') && lowerMessage.includes('invalid')) ||
-      lowerMessage.includes('permission denied')
+      (lowerMessage.includes('api key') && (lowerMessage.includes('invalid') || lowerMessage.includes('not valid'))) ||
+    (lowerMessage.includes('api key') && (lowerMessage.includes('expired') || lowerMessage.includes('revoked'))) ||
+      lowerMessage.includes('permission denied') ||
+      lowerMessage.includes('permission_denied') ||
+      lowerMessage.includes('authentication failed')
     ) {
       return {
         severity: 'fatal',
@@ -239,12 +242,14 @@ export class GeminiRuntimeAdapter implements RuntimeProviderAdapter {
       }
     }
 
-    // Model not found
+    // Model not found — use compound check so "model {name} does not exist"
+    // is still detected even when the model name breaks the contiguous substring
     if (
       status === 404 ||
       lowerMessage.includes('model not found') ||
       lowerMessage.includes('unknown model') ||
-      lowerMessage.includes('model does not exist')
+      lowerMessage.includes('model does not exist') ||
+      (lowerMessage.includes('model') && lowerMessage.includes('does not exist'))
     ) {
       return {
         severity: 'fatal',

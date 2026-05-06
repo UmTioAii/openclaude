@@ -82,6 +82,7 @@ const adapter = new GeminiRuntimeAdapter()
 const processEnv = {} as NodeJS.ProcessEnv
 
 const validProviderInput = {
+  providerId: 'gemini',
   apiKey: 'test-gemini-key',
   baseUrl: 'https://generativelanguage.googleapis.com',
   model: 'gemini-2.5-pro',
@@ -421,6 +422,8 @@ describe('GeminiRuntimeAdapter — resolveCapabilities', () => {
       providerInput: validProviderInput,
       descriptor: makeDescriptor(),
       catalogEntry: {
+    id: 'gemini-2.5-pro',
+    apiName: 'gemini-2.5-pro',
         capabilities: { supportsReasoning: true },
         contextWindow: undefined,
         maxOutputTokens: undefined,
@@ -449,6 +452,8 @@ describe('GeminiRuntimeAdapter — resolveCapabilities', () => {
       providerInput: validProviderInput,
       descriptor: makeDescriptor(),
       catalogEntry: {
+    id: 'gemini-2.5-pro',
+    apiName: 'gemini-2.5-pro',
         capabilities: { supportsFunctionCalling: true },
         contextWindow: undefined,
         maxOutputTokens: undefined,
@@ -522,6 +527,8 @@ describe('GeminiRuntimeAdapter — resolveCapabilities', () => {
       providerInput: validProviderInput,
       descriptor: makeDescriptor(),
       catalogEntry: {
+    id: 'gemini-2.5-pro',
+    apiName: 'gemini-2.5-pro',
         contextWindow: 1000000,
         maxOutputTokens: 65536,
       },
@@ -652,6 +659,22 @@ describe('GeminiRuntimeAdapter — buildPayload', () => {
     expect(result.authorization).toBeUndefined()
     expect(result.Authorization).toBeUndefined()
   })
+
+  it('sets model when whitespace-only string', () => {
+    const result = adapter.buildPayload({
+      body: { model: '   ' },
+      capabilities: caps,
+    })
+    expect(result.model).toBe('gemini-2.5-pro')
+  })
+
+  it('sets model when null', () => {
+    const result = adapter.buildPayload({
+      body: { model: null as unknown as string },
+      capabilities: caps,
+    })
+    expect(result.model).toBe('gemini-2.5-pro')
+  })
 })
 
 // ── classifyError ──────────────────────────────────────────────────────
@@ -715,6 +738,41 @@ describe('GeminiRuntimeAdapter — classifyError', () => {
     const result = adapter.classifyError({ message: 'Model does not exist' })
     expect(result.severity).toBe('fatal')
     expect(result.code).toBe('model_not_found')
+  })
+
+  it('maps "model gemini-pro does not exist" to model_not_found', () => {
+    const result = adapter.classifyError({ message: 'model gemini-pro does not exist' })
+    expect(result.severity).toBe('fatal')
+    expect(result.code).toBe('model_not_found')
+  })
+
+  it('maps "API key not valid" to invalid_api_key', () => {
+    const result = adapter.classifyError({ message: 'API key not valid' })
+    expect(result.severity).toBe('fatal')
+    expect(result.code).toBe('invalid_api_key')
+  })
+
+  it('maps "API key expired" to invalid_api_key', () => {
+    const result = adapter.classifyError({ message: 'API key expired' })
+    expect(result.severity).toBe('fatal')
+    expect(result.code).toBe('invalid_api_key')
+  })
+
+  it('maps "API key has been revoked" to invalid_api_key', () => {
+    const result = adapter.classifyError({ message: 'API key has been revoked' })
+    expect(result.code).toBe('invalid_api_key')
+  })
+
+  it('maps "PERMISSION_DENIED" to invalid_api_key', () => {
+    const result = adapter.classifyError({ message: 'PERMISSION_DENIED' })
+    expect(result.severity).toBe('fatal')
+    expect(result.code).toBe('invalid_api_key')
+  })
+
+  it('maps "authentication failed" to invalid_api_key', () => {
+    const result = adapter.classifyError({ message: 'Authentication failed' })
+    expect(result.severity).toBe('fatal')
+    expect(result.code).toBe('invalid_api_key')
   })
 
   it('fallback is warning probe_failed with stable reason', () => {
