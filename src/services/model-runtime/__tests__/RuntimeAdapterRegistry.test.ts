@@ -89,12 +89,107 @@ describe('RuntimeAdapterRegistry', () => {
   })
 
   describe('buildDefaultRuntimeAdapterRegistry', () => {
-    it('currently exposes only legacy-passthrough', () => {
+    it('exposes Nvidia NIM adapter', () => {
+      const registry = buildDefaultRuntimeAdapterRegistry()
+      const adapters = registry.getAdapters()
+      const ids = adapters.map((a) => a.id)
+      expect(ids).toContain('nvidia-nim')
+    })
+
+    it('exposes OpenRouter adapter', () => {
+      const registry = buildDefaultRuntimeAdapterRegistry()
+      const adapters = registry.getAdapters()
+      const ids = adapters.map((a) => a.id)
+      expect(ids).toContain('openrouter')
+    })
+
+    it('exposes Codex adapter', () => {
+      const registry = buildDefaultRuntimeAdapterRegistry()
+      const adapters = registry.getAdapters()
+      const ids = adapters.map((a) => a.id)
+      expect(ids).toContain('codex')
+    })
+
+    it('exposes Gemini adapter', () => {
+      const registry = buildDefaultRuntimeAdapterRegistry()
+      const adapters = registry.getAdapters()
+      const ids = adapters.map((a) => a.id)
+      expect(ids).toContain('gemini')
+    })
+
+    it('still exposes legacy-passthrough', () => {
+      const registry = buildDefaultRuntimeAdapterRegistry()
+      const adapters = registry.getAdapters()
+      const ids = adapters.map((a) => a.id)
+      expect(ids).toContain('legacy-passthrough')
+    })
+
+    it('returns adapters in exact order: managed adapters then legacy-passthrough', () => {
       const registry = buildDefaultRuntimeAdapterRegistry()
       const adapters = registry.getAdapters()
 
-      expect(adapters).toHaveLength(1)
-      expect(adapters[0].id).toBe('legacy-passthrough')
+      expect(adapters.map((a) => a.id)).toEqual([
+        'codex',
+        'gemini',
+        'nvidia-nim',
+        'openrouter',
+        'legacy-passthrough',
+      ])
+    })
+
+    it('returns NvidiaNimRuntimeAdapter for routeId "nvidia-nim"', () => {
+      const registry = buildDefaultRuntimeAdapterRegistry()
+
+      const result = registry.resolve({
+        routeId: 'nvidia-nim',
+        descriptor: { id: 'nvidia-nim' } as any,
+      })
+
+      expect(result.id).toBe('nvidia-nim')
+    })
+
+    it('returns OpenRouterRuntimeAdapter for routeId "openrouter"', () => {
+      const registry = buildDefaultRuntimeAdapterRegistry()
+
+      const result = registry.resolve({
+        routeId: 'openrouter',
+        descriptor: { id: 'openrouter' } as any,
+      })
+
+      expect(result.id).toBe('openrouter')
+    })
+
+    it('returns CodexRuntimeAdapter for routeId "codex"', () => {
+      const registry = buildDefaultRuntimeAdapterRegistry()
+
+      const result = registry.resolve({
+        routeId: 'codex',
+        descriptor: { id: 'codex' } as any,
+      })
+
+      expect(result.id).toBe('codex')
+    })
+
+    it('returns GeminiRuntimeAdapter for routeId "gemini"', () => {
+      const registry = buildDefaultRuntimeAdapterRegistry()
+
+      const result = registry.resolve({
+        routeId: 'gemini',
+        descriptor: { id: 'gemini' } as any,
+      })
+
+      expect(result.id).toBe('gemini')
+    })
+
+    it('returns legacy-passthrough for unknown/custom routeId', () => {
+      const registry = buildDefaultRuntimeAdapterRegistry()
+
+      const result = registry.resolve({
+        routeId: 'custom-unknown-provider',
+        descriptor: { id: 'custom-unknown-provider' } as any,
+      })
+
+      expect(result.id).toBe('legacy-passthrough')
     })
   })
 })

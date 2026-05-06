@@ -3,13 +3,17 @@ import type { RuntimeProviderAdapter } from './types.js'
 import type { RouteDescriptor } from '../../integrations/routeMetadata.js'
 
 import { LegacyRuntimePassthroughAdapter } from './adapters/legacy/LegacyRuntimePassthroughAdapter.js'
+import { NvidiaNimRuntimeAdapter } from './adapters/nvidia/NvidiaNimRuntimeAdapter.js'
+import { OpenRouterRuntimeAdapter } from './adapters/openrouter/OpenRouterRuntimeAdapter.js'
+import { CodexRuntimeAdapter } from './adapters/codex/CodexRuntimeAdapter.js'
+import { GeminiRuntimeAdapter } from './adapters/gemini/GeminiRuntimeAdapter.js'
 
-// Final intended adapter order:
+// Adapter order: managed adapters first, then legacy-passthrough fallback.
 // 1. Codex
 // 2. Gemini
 // 3. NvidiaNim
 // 4. OpenRouter
-// 5. LegacyRuntimePassthrough
+// 5. LegacyRuntimePassthrough (fallback — always last)
 
 export class RuntimeAdapterRegistry {
   private readonly adapters: RuntimeProviderAdapter[]
@@ -38,7 +42,10 @@ export class RuntimeAdapterRegistry {
 }
 
 export function buildDefaultRuntimeAdapterRegistry(): RuntimeAdapterRegistry {
-  // Real provider adapters are not yet implemented.
-  // The default registry currently exposes only the legacy-passthrough fallback.
-  return new RuntimeAdapterRegistry([])
+  return new RuntimeAdapterRegistry([
+    new CodexRuntimeAdapter(),
+    new GeminiRuntimeAdapter(),
+    new NvidiaNimRuntimeAdapter(),
+    new OpenRouterRuntimeAdapter(),
+  ])
 }
