@@ -5,7 +5,12 @@ import {
   resolveDiscoveryRouteIdFromBaseUrl,
 } from '../../integrations/discoveryService.js'
 import { getGateway, getVendor } from '../../integrations/index.js'
-import { resolveRouteCredentialValue } from '../../integrations/routeMetadata.js'
+import {
+  resolveActiveRouteIdFromEnv,
+  resolveRouteCredentialValue,
+  getRouteDescriptor,
+} from '../../integrations/routeMetadata.js'
+import { isEnvTruthy } from '../../utils/envUtils.js'
 import {
   getAnthropicApiKey,
   getClaudeAIOAuthTokens,
@@ -153,7 +158,8 @@ async function fetchLocalOpenAIModelOptions(): Promise<BootstrapCachePayload | n
     return null
   }
 
-  const { baseUrl } = resolveProviderRequest()
+  const providerRequest = resolveProviderRequest()
+  const { baseUrl } = providerRequest
   const routeId = resolveDiscoveryRouteIdFromBaseUrl(baseUrl)
   const routeLabel =
     (routeId
@@ -164,6 +170,50 @@ async function fetchLocalOpenAIModelOptions(): Promise<BootstrapCachePayload | n
     baseUrl,
     processEnv: process.env,
   })
+
+  // Feature-flagged provider startup verification (CLAUDE_CODE_USE_MANAGED_RUNTIME)
+  // Runs only when the flag is truthy. No network calls; does not alter
+  // request body, endpoint, or quirk behavior.
+  if (isEnvTruthy(process.env.CLAUDE_CODE_USE_MANAGED_RUNTIME)) {
+    const activeRouteId = resolveActiveRouteIdFromEnv(process.env)
+    const runtimeRouteId = activeRouteId ?? routeId
+
+    if (runtimeRouteId) {
+      const descriptor = getRouteDescriptor(runtimeRouteId)
+
+      if (descriptor) {
+        const runtimeApiKey =
+          resolveRouteCredentialValue({
+            routeId: runtimeRouteId,
+            baseUrl,
+            processEnv: process.env,
+          }) ?? apiKey
+
+        const { buildDefaultProviderStartupVerifier } = await import(
+          '../model-runtime/ProviderStartupVerifier.js'
+        )
+        const verifier = buildDefaultProviderStartupVerifier()
+        const result = await verifier.verifyStartup({
+          routeId: runtimeRouteId,
+          descriptor,
+          catalogEntry: null,
+          providerInput: {
+            providerId: runtimeRouteId,
+            baseUrl,
+            model: providerRequest.resolvedModel,
+            apiKey: runtimeApiKey,
+          },
+          processEnv: process.env,
+        })
+
+        if (!result.ok && result.severity === 'fatal') {
+          throw new Error(
+            `Provider startup verification failed: ${result.reason}`,
+          )
+        }
+      }
+    }
+  }
 
   const discovered = routeId
     ? await discoverModelsForRoute(routeId, {
