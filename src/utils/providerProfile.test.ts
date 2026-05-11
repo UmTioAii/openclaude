@@ -173,7 +173,7 @@ test('xai launch uses descriptor defaults and persisted xAI key', async () => {
 
   assert.equal(env.CLAUDE_CODE_USE_OPENAI, '1')
   assert.equal(env.OPENAI_BASE_URL, 'https://api.x.ai/v1')
-  assert.equal(env.OPENAI_MODEL, 'grok-4')
+  assert.equal(env.OPENAI_MODEL, 'grok-4.3')
   assert.equal(env.OPENAI_API_KEY, 'xai-persisted-key')
   assert.equal(env.XAI_API_KEY, 'xai-persisted-key')
 })
@@ -610,7 +610,9 @@ test('saveProfileFile defaults to user config instead of the working directory',
     assert.equal(filePath, join(configDir, PROFILE_FILE_NAME))
     assert.equal(getDefaultProfileFilePath(), join(configDir, PROFILE_FILE_NAME))
     assert.equal(existsSync(join(cwd, PROFILE_FILE_NAME)), false)
-    assert.equal(statSync(configDir).mode & 0o777, 0o700)
+    if (process.platform !== 'win32') {
+      assert.equal(statSync(configDir).mode & 0o777, 0o700)
+    }
     assert.deepEqual(loadProfileFile(), persisted)
   } finally {
     process.chdir(previousCwd)

@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import {
   parseProviderFlag,
+  parseModelFlag,
   applyProviderFlag,
   applyProviderFlagFromArgs,
+  applyModelFlagFromArgs,
   VALID_PROVIDERS,
 } from './providerFlag.js'
 
@@ -10,6 +12,7 @@ const ENV_KEYS = [
   'CLAUDE_CODE_USE_OPENAI',
   'CLAUDE_CODE_USE_GEMINI',
   'CLAUDE_CODE_USE_GITHUB',
+  'CLAUDE_CODE_USE_MISTRAL',
   'CLAUDE_CODE_USE_BEDROCK',
   'CLAUDE_CODE_USE_VERTEX',
   'OPENAI_BASE_URL',
@@ -21,6 +24,9 @@ const ENV_KEYS = [
   'BNKR_API_KEY',
   'XAI_API_KEY',
   'MINIMAX_API_KEY',
+  'VENICE_API_KEY',
+  'MISTRAL_MODEL',
+  'ANTHROPIC_MODEL',
 ]
 
 const originalEnv: Record<string, string | undefined> = {}
@@ -36,6 +42,7 @@ const RESET_KEYS = [
   'CLAUDE_CODE_USE_OPENAI',
   'CLAUDE_CODE_USE_GEMINI',
   'CLAUDE_CODE_USE_GITHUB',
+  'CLAUDE_CODE_USE_MISTRAL',
   'CLAUDE_CODE_USE_BEDROCK',
   'CLAUDE_CODE_USE_VERTEX',
   'OPENAI_BASE_URL',
@@ -47,6 +54,9 @@ const RESET_KEYS = [
   'BNKR_API_KEY',
   'XAI_API_KEY',
   'MINIMAX_API_KEY',
+  'VENICE_API_KEY',
+  'MISTRAL_MODEL',
+  'ANTHROPIC_MODEL',
 ] as const
 
 beforeEach(() => {
@@ -111,6 +121,7 @@ describe('VALID_PROVIDERS', () => {
     expect(VALID_PROVIDERS).toContain('openrouter')
     expect(VALID_PROVIDERS).toContain('atomic-chat')
     expect(VALID_PROVIDERS).toContain('zai')
+    expect(VALID_PROVIDERS).toContain('venice')
   })
 })
 
@@ -322,6 +333,20 @@ describe('applyProviderFlag - zai', () => {
   })
 })
 
+describe('applyProviderFlag - venice', () => {
+  test('sets Venice OpenAI-compatible defaults and mirrors VENICE_API_KEY', () => {
+    process.env.VENICE_API_KEY = 'venice-secret-key'
+
+    const result = applyProviderFlag('venice', [])
+
+    expect(result.error).toBeUndefined()
+    expect(process.env.CLAUDE_CODE_USE_OPENAI).toBe('1')
+    expect(process.env.OPENAI_BASE_URL).toBe('https://api.venice.ai/api/v1')
+    expect(process.env.OPENAI_MODEL).toBe('venice-uncensored')
+    expect(process.env.OPENAI_API_KEY).toBe('venice-secret-key')
+  })
+})
+
 describe('applyProviderFlag - xai', () => {
   test('sets CLAUDE_CODE_USE_OPENAI=1 with xAI defaults when unset', () => {
     delete process.env.OPENAI_BASE_URL
@@ -330,8 +355,8 @@ describe('applyProviderFlag - xai', () => {
     const result = applyProviderFlag('xai', [])
     expect(result.error).toBeUndefined()
     expect(process.env.CLAUDE_CODE_USE_OPENAI).toBe('1')
-    expect(process.env.OPENAI_BASE_URL).toBe('https://api.x.ai/v1')
-    expect(process.env.OPENAI_MODEL).toBe('grok-4')
+    expect(process.env.OPENAI_BASE_URL as string | undefined).toBe('https://api.x.ai/v1')
+    expect(process.env.OPENAI_MODEL).toBe('grok-4.3')
   })
 
   test('sets OPENAI_MODEL when --model is provided', () => {
@@ -345,7 +370,7 @@ describe('applyProviderFlag - xai', () => {
 
     applyProviderFlag('xai', [])
 
-    expect(process.env.OPENAI_API_KEY).toBe('xai-secret-key')
+    expect(process.env.OPENAI_API_KEY as string | undefined).toBe('xai-secret-key')
   })
 
   test('does not override existing OPENAI_API_KEY when both keys are set', () => {
@@ -387,5 +412,84 @@ describe('applyProviderFlagFromArgs', () => {
 
   test('returns undefined when --provider is absent', () => {
     expect(applyProviderFlagFromArgs(['--model', 'gpt-4o'])).toBeUndefined()
+  })
+})
+
+// --- parseModelFlag ---
+
+describe('parseModelFlag', () => {
+  test('returns model value when --model is present', () => {
+    expect(parseModelFlag(['--model', 'gpt-4o-mini'])).toBe('gpt-4o-mini')
+  })
+
+  test('returns null when --model is absent', () => {
+    expect(parseModelFlag(['--provider', 'openai'])).toBeNull()
+  })
+
+  test('returns null when --model has no value', () => {
+    expect(parseModelFlag(['--model'])).toBeNull()
+  })
+
+  test('returns null when --model value looks like another flag', () => {
+    expect(parseModelFlag(['--model', '--provider'])).toBeNull()
+  })
+})
+
+// --- applyModelFlagFromArgs (#808) ---
+
+describe('applyModelFlagFromArgs', () => {
+  test('is a no-op when --model is absent', () => {
+    applyModelFlagFromArgs(['--ide'])
+    expect(process.env.OPENAI_MODEL).toBeUndefined()
+    expect(process.env.GEMINI_MODEL).toBeUndefined()
+    expect(process.env.ANTHROPIC_MODEL).toBeUndefined()
+  })
+
+  test('is a no-op when --provider is also present (handled by applyProviderFlagFromArgs)', () => {
+    process.env.CLAUDE_CODE_USE_OPENAI = '1'
+    applyModelFlagFromArgs(['--provider', 'openai', '--model', 'gpt-4o'])
+    expect(process.env.OPENAI_MODEL).toBeUndefined()
+  })
+
+  test('sets OPENAI_MODEL when CLAUDE_CODE_USE_OPENAI is active', () => {
+    process.env.CLAUDE_CODE_USE_OPENAI = '1'
+    applyModelFlagFromArgs(['--model', 'gpt-4o-mini'])
+    expect(process.env.OPENAI_MODEL).toBe('gpt-4o-mini')
+  })
+
+  test('sets GEMINI_MODEL when CLAUDE_CODE_USE_GEMINI is active', () => {
+    process.env.CLAUDE_CODE_USE_GEMINI = '1'
+    applyModelFlagFromArgs(['--model', 'gemini-2.0-flash'])
+    expect(process.env.GEMINI_MODEL).toBe('gemini-2.0-flash')
+  })
+
+  test('sets MISTRAL_MODEL when CLAUDE_CODE_USE_MISTRAL is active', () => {
+    process.env.CLAUDE_CODE_USE_MISTRAL = '1'
+    applyModelFlagFromArgs(['--model', 'devstral-latest'])
+    expect(process.env.MISTRAL_MODEL).toBe('devstral-latest')
+  })
+
+  test('sets OPENAI_MODEL when CLAUDE_CODE_USE_GITHUB is active', () => {
+    process.env.CLAUDE_CODE_USE_GITHUB = '1'
+    applyModelFlagFromArgs(['--model', 'gpt-4.1'])
+    expect(process.env.OPENAI_MODEL).toBe('gpt-4.1')
+  })
+
+  test('falls back to ANTHROPIC_MODEL when no provider flag is set', () => {
+    applyModelFlagFromArgs(['--model', 'claude-sonnet-4-6'])
+    expect(process.env.ANTHROPIC_MODEL).toBe('claude-sonnet-4-6')
+  })
+
+  test('overrides an existing *_MODEL value (saved profile override)', () => {
+    process.env.CLAUDE_CODE_USE_OPENAI = '1'
+    process.env.OPENAI_MODEL = 'gpt-4o'
+    applyModelFlagFromArgs(['--model', 'gpt-4o-mini'])
+    expect(process.env.OPENAI_MODEL).toBe('gpt-4o-mini')
+  })
+
+  test('accepts --model value containing colons (ollama tag syntax)', () => {
+    process.env.CLAUDE_CODE_USE_OPENAI = '1'
+    applyModelFlagFromArgs(['--model', 'qwen2.5-coder:14b'])
+    expect(process.env.OPENAI_MODEL).toBe('qwen2.5-coder:14b')
   })
 })

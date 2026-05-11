@@ -94,6 +94,7 @@ const PROFILE_ENV_KEYS = [
   'OPENROUTER_API_KEY',
   'OPENROUTER_BASE_URL',
   'OPENROUTER_MODEL',
+  'VENICE_API_KEY',
 ] as const
 
 export type CompatibilityProfileMode =
@@ -117,6 +118,7 @@ const SECRET_ENV_KEYS = [
   'BNKR_API_KEY',
   'XAI_API_KEY',
   'OPENROUTER_API_KEY',
+  'VENICE_API_KEY',
 ] as const
 
 export type ProviderProfile =
@@ -175,6 +177,7 @@ export type ProfileEnv = {
   OPENROUTER_API_KEY?: string
   OPENROUTER_BASE_URL?: string
   OPENROUTER_MODEL?: string
+  VENICE_API_KEY?: string
 }
 
 export type ProfileFile = {
@@ -195,7 +198,8 @@ type SecretValueSource = Partial<
     | 'MISTRAL_API_KEY'
     | 'BNKR_API_KEY'
     | 'XAI_API_KEY'
-    | 'OPENROUTER_API_KEY',
+    | 'OPENROUTER_API_KEY'
+    | 'VENICE_API_KEY',
     string | undefined
   >
 >
@@ -469,6 +473,46 @@ export function buildMiniMaxProfileEnv(options: {
   }
 }
 
+export function buildVeniceProfileEnv(options: {
+  model?: string | null
+  baseUrl?: string | null
+  apiKey?: string | null
+  processEnv?: NodeJS.ProcessEnv
+}): ProfileEnv | null {
+  const processEnv = options.processEnv ?? process.env
+  const key = sanitizeApiKey(options.apiKey ?? processEnv.VENICE_API_KEY)
+  if (!key) {
+    return null
+  }
+
+  const defaultBaseUrl = getRouteDefaultBaseUrl('venice')
+  const defaultModel = getRouteDefaultModel('venice')
+  if (!defaultBaseUrl || !defaultModel) {
+    throw new Error('Venice route defaults are missing from integration metadata.')
+  }
+  const secretSource: SecretValueSource = {
+    OPENAI_API_KEY: key,
+    VENICE_API_KEY: key,
+  }
+
+  return {
+    OPENAI_BASE_URL:
+      sanitizeProviderConfigValue(options.baseUrl, secretSource) ||
+      sanitizeProviderConfigValue(processEnv.OPENAI_BASE_URL, secretSource) ||
+      defaultBaseUrl,
+    OPENAI_MODEL:
+      normalizeProfileModel(
+        sanitizeProviderConfigValue(options.model, secretSource),
+      ) ||
+      normalizeProfileModel(
+        sanitizeProviderConfigValue(processEnv.OPENAI_MODEL, secretSource),
+      ) ||
+      defaultModel,
+    OPENAI_API_KEY: key,
+    VENICE_API_KEY: key,
+  }
+}
+
 export function buildGeminiProfileEnv(options: {
   model?: string | null
   baseUrl?: string | null
@@ -701,7 +745,7 @@ function buildXaiProfileEnv(options: {
     XAI_API_KEY: key,
   }
   const defaultBaseUrl = getRouteDefaultBaseUrl('xai') ?? 'https://api.x.ai/v1'
-  const defaultModel = getRouteDefaultModel('xai') ?? 'grok-4'
+  const defaultModel = getRouteDefaultModel('xai') ?? 'grok-4.3'
   const env: ProfileEnv = {
     OPENAI_BASE_URL:
       sanitizeProviderConfigValue(options.baseUrl, secretSource) ||
