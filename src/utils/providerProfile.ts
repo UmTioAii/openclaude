@@ -53,6 +53,7 @@ const PROFILE_ENV_KEYS = [
   'CLAUDE_CODE_USE_BEDROCK',
   'CLAUDE_CODE_USE_VERTEX',
   'CLAUDE_CODE_USE_FOUNDRY',
+  'CLAUDE_CODE_USE_OPENROUTER',
   'ANTHROPIC_BASE_URL',
   'ANTHROPIC_MODEL',
   'ANTHROPIC_API_KEY',
@@ -90,6 +91,9 @@ const PROFILE_ENV_KEYS = [
   'BNKR_API_KEY',
   'BANKR_MODEL',
   'XAI_API_KEY',
+  'OPENROUTER_API_KEY',
+  'OPENROUTER_BASE_URL',
+  'OPENROUTER_MODEL',
 ] as const
 
 export type CompatibilityProfileMode =
@@ -112,6 +116,7 @@ const SECRET_ENV_KEYS = [
   'MISTRAL_API_KEY',
   'BNKR_API_KEY',
   'XAI_API_KEY',
+  'OPENROUTER_API_KEY',
 ] as const
 
 export type ProviderProfile =
@@ -128,6 +133,7 @@ export type ProviderProfile =
   | 'bedrock'
   | 'vertex'
   | 'xai'
+  | 'openrouter'
 
 export type ProfileEnv = {
   ANTHROPIC_BASE_URL?: string
@@ -166,6 +172,9 @@ export type ProfileEnv = {
   BNKR_API_KEY?: string
   BANKR_MODEL?: string
   XAI_API_KEY?: string
+  OPENROUTER_API_KEY?: string
+  OPENROUTER_BASE_URL?: string
+  OPENROUTER_MODEL?: string
 }
 
 export type ProfileFile = {
@@ -185,7 +194,8 @@ type SecretValueSource = Partial<
     | 'MINIMAX_API_KEY'
     | 'MISTRAL_API_KEY'
     | 'BNKR_API_KEY'
-    | 'XAI_API_KEY',
+    | 'XAI_API_KEY'
+    | 'OPENROUTER_API_KEY',
     string | undefined
   >
 >
@@ -299,7 +309,8 @@ export function isProviderProfile(value: unknown): value is ProviderProfile {
     value === 'github' ||
     value === 'bedrock' ||
     value === 'vertex' ||
-    value === 'xai'
+    value === 'xai' ||
+    value === 'openrouter'
   )
 }
 
@@ -714,6 +725,39 @@ function buildXaiProfileEnv(options: {
   return env
 }
 
+export function buildOpenRouterProfileEnv(options: {
+  model?: string | null
+  baseUrl?: string | null
+  apiKey?: string | null
+  processEnv?: NodeJS.ProcessEnv
+}): ProfileEnv | null {
+  const processEnv = options.processEnv ?? process.env
+  const key = sanitizeApiKey(options.apiKey ?? processEnv.OPENROUTER_API_KEY)
+  if (!key) {
+    return null
+  }
+
+  const defaultBaseUrl = getRouteDefaultBaseUrl('openrouter') ?? 'https://openrouter.ai/api/v1'
+  const defaultModel = getRouteDefaultModel('openrouter') ?? 'openai/gpt-5-mini'
+  const secretSource: SecretValueSource = { OPENROUTER_API_KEY: key }
+
+  return {
+    OPENROUTER_API_KEY: key,
+    OPENROUTER_BASE_URL:
+      sanitizeProviderConfigValue(options.baseUrl, secretSource) ||
+      sanitizeProviderConfigValue(processEnv.OPENROUTER_BASE_URL, secretSource) ||
+      defaultBaseUrl,
+    OPENROUTER_MODEL:
+      normalizeProfileModel(
+        sanitizeProviderConfigValue(options.model, secretSource),
+      ) ||
+      normalizeProfileModel(
+        sanitizeProviderConfigValue(processEnv.OPENROUTER_MODEL, secretSource),
+      ) ||
+      defaultModel,
+  }
+}
+
 function getCompatibilityProfileFlag(
   compatibilityMode: CompatibilityProfileMode,
 ):
@@ -764,6 +808,34 @@ export function buildCompatibilityProcessEnv(options: {
   }
 
   applyProfileEnvToProcessEnv(env, nextEnv)
+  return env
+}
+
+function buildOpenRouterProcessEnv(options: {
+  profileEnv: ProfileEnv | null
+  processEnv?: NodeJS.ProcessEnv
+}): NodeJS.ProcessEnv {
+  const env = { ...(options.processEnv ?? process.env) }
+  clearManagedProfileEnv(env)
+
+  const profileEnv = options.profileEnv ?? {}
+  if (profileEnv.OPENROUTER_API_KEY) {
+    env.OPENROUTER_API_KEY = profileEnv.OPENROUTER_API_KEY
+  }
+  if (profileEnv.OPENROUTER_BASE_URL) {
+    env.OPENROUTER_BASE_URL = profileEnv.OPENROUTER_BASE_URL
+  }
+  if (profileEnv.OPENROUTER_MODEL) {
+    env.OPENROUTER_MODEL = profileEnv.OPENROUTER_MODEL
+  }
+
+  env.CLAUDE_CODE_USE_OPENROUTER = '1'
+
+  // Safety net: ensure no OPENAI_* env vars leak from processEnv
+  delete env.OPENAI_API_KEY
+  delete env.OPENAI_BASE_URL
+  delete env.OPENAI_MODEL
+
   return env
 }
 
@@ -878,6 +950,7 @@ export function hasExplicitProviderSelection(
     isEnvTruthy(processEnv.CLAUDE_CODE_USE_MISTRAL) ||
     isEnvTruthy(processEnv.CLAUDE_CODE_USE_BEDROCK) ||
     isEnvTruthy(processEnv.CLAUDE_CODE_USE_VERTEX) ||
+    isEnvTruthy(processEnv.CLAUDE_CODE_USE_OPENROUTER) ||
     isEnvTruthy(processEnv.CLAUDE_CODE_USE_FOUNDRY)
   )
 }
@@ -970,6 +1043,7 @@ export async function buildLaunchEnv(options: {
       ['CLAUDE_CODE_USE_VERTEX', 'vertex'],
       ['CLAUDE_CODE_USE_MISTRAL', 'mistral'],
       ['CLAUDE_CODE_USE_GEMINI', 'gemini'],
+      ['CLAUDE_CODE_USE_OPENROUTER', 'openrouter'],
       ['CLAUDE_CODE_USE_OPENAI', 'openai'],
     ]
 
@@ -979,7 +1053,10 @@ export async function buildLaunchEnv(options: {
           options.profile === 'codex' &&
           provider === 'openai' &&
           persistedEnv.CODEX_CREDENTIAL_SOURCE === 'oauth'
-        if (!isCodexOAuthProfile) {
+        const isOpenRouterProfile =
+          options.profile === 'openrouter' &&
+          provider === 'openai'
+        if (!isCodexOAuthProfile && !isOpenRouterProfile) {
           options.profile = provider
         }
         break
@@ -1174,6 +1251,43 @@ export async function buildLaunchEnv(options: {
     return buildCompatibilityProcessEnv({
       processEnv,
       compatibilityMode: 'openai',
+      profileEnv: env,
+    })
+  }
+
+  if (options.profile === 'openrouter') {
+    const shellOpenRouterModel = normalizeProfileModel(
+      sanitizeProviderConfigValue(
+        processEnv.OPENROUTER_MODEL,
+      ),
+    )
+    const persistedOpenRouterModel = normalizeProfileModel(
+      sanitizeProviderConfigValue(
+        persistedEnv.OPENROUTER_MODEL,
+      ),
+    )
+    const shellOpenRouterBaseUrl = sanitizeProviderConfigValue(
+      processEnv.OPENROUTER_BASE_URL,
+    )
+    const persistedOpenRouterBaseUrl = sanitizeProviderConfigValue(
+      persistedEnv.OPENROUTER_BASE_URL,
+    )
+
+    const shellOpenRouterKey = sanitizeApiKey(
+      processEnv.OPENROUTER_API_KEY,
+    )
+    const persistedOpenRouterKey = sanitizeApiKey(persistedEnv.OPENROUTER_API_KEY)
+    const openRouterKey = shellOpenRouterKey || persistedOpenRouterKey
+
+    const env = buildOpenRouterProfileEnv({
+      model: shellOpenRouterModel || persistedOpenRouterModel,
+      baseUrl: shellOpenRouterBaseUrl || persistedOpenRouterBaseUrl,
+      apiKey: openRouterKey,
+      processEnv,
+    })
+
+    return buildOpenRouterProcessEnv({
+      processEnv,
       profileEnv: env,
     })
   }

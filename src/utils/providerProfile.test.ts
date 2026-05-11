@@ -14,6 +14,8 @@ import {
   buildLaunchEnv,
   buildOllamaProfileEnv,
   buildOpenAIProfileEnv,
+  buildOpenRouterProfileEnv,
+  isProviderProfile,
   clearPersistedCodexOAuthProfile,
   createProfileFile,
   deleteProfileFile,
@@ -1394,4 +1396,253 @@ test('atomic-chat launch ignores mismatched persisted openai env', async () => {
   assert.equal(env.OPENAI_API_KEY, undefined)
   assert.equal(env.CODEX_API_KEY, undefined)
   assert.equal(env.CHATGPT_ACCOUNT_ID, undefined)
+})
+
+// -- OpenRouter profile tests --
+
+test('isProviderProfile("openrouter") returns true', () => {
+  assert.equal(isProviderProfile('openrouter'), true)
+})
+
+test('buildOpenRouterProfileEnv emits OPENROUTER_API_KEY', () => {
+  const env = buildOpenRouterProfileEnv({
+    apiKey: 'sk-or-test',
+    processEnv: {},
+  })
+  assert.ok(env)
+  assert.equal(env!.OPENROUTER_API_KEY, 'sk-or-test')
+})
+
+test('buildOpenRouterProfileEnv emits OPENROUTER_BASE_URL when provided', () => {
+  const env = buildOpenRouterProfileEnv({
+    apiKey: 'sk-or-test',
+    baseUrl: 'https://custom.openrouter.ai/api/v1',
+    processEnv: {},
+  })
+  assert.ok(env)
+  assert.equal(env!.OPENROUTER_BASE_URL, 'https://custom.openrouter.ai/api/v1')
+})
+
+test('buildOpenRouterProfileEnv emits OPENROUTER_MODEL when provided', () => {
+  const env = buildOpenRouterProfileEnv({
+    apiKey: 'sk-or-test',
+    model: 'anthropic/claude-3-opus',
+    processEnv: {},
+  })
+  assert.ok(env)
+  assert.equal(env!.OPENROUTER_MODEL, 'anthropic/claude-3-opus')
+})
+
+test('buildOpenRouterProfileEnv does not emit OPENAI_API_KEY', () => {
+  const env = buildOpenRouterProfileEnv({
+    apiKey: 'sk-or-test',
+    processEnv: {},
+  })
+  assert.ok(env)
+  assert.equal(env!.OPENAI_API_KEY, undefined)
+})
+
+test('buildOpenRouterProfileEnv does not emit OPENAI_BASE_URL', () => {
+  const env = buildOpenRouterProfileEnv({
+    apiKey: 'sk-or-test',
+    processEnv: {},
+  })
+  assert.ok(env)
+  assert.equal(env!.OPENAI_BASE_URL, undefined)
+})
+
+test('buildOpenRouterProfileEnv does not emit OPENAI_MODEL', () => {
+  const env = buildOpenRouterProfileEnv({
+    apiKey: 'sk-or-test',
+    processEnv: {},
+  })
+  assert.ok(env)
+  assert.equal(env!.OPENAI_MODEL, undefined)
+})
+
+test('buildLaunchEnv supports openrouter', async () => {
+  const env = await buildLaunchEnv({
+    profile: 'openrouter',
+    persisted: profile('openrouter', {
+      OPENROUTER_API_KEY: 'sk-or-persisted',
+    }),
+    goal: 'balanced',
+    processEnv: {},
+  })
+  assert.equal(env.OPENROUTER_API_KEY, 'sk-or-persisted')
+  assert.ok(env.OPENROUTER_BASE_URL)
+  assert.ok(env.OPENROUTER_MODEL)
+})
+
+test('buildLaunchEnv openrouter ignores stale OPENAI_MODEL and OPENAI_BASE_URL from processEnv', async () => {
+  const env = await buildLaunchEnv({
+    profile: 'openrouter',
+    persisted: profile('openrouter', {
+      OPENROUTER_API_KEY: 'sk-or-test',
+    }),
+    goal: 'balanced',
+    processEnv: {
+      OPENAI_MODEL: 'gpt-4o',
+      OPENAI_BASE_URL: 'https://api.openai.com/v1',
+    },
+  })
+  assert.equal(env.OPENROUTER_API_KEY, 'sk-or-test')
+  assert.equal(env.OPENAI_MODEL, undefined)
+  assert.equal(env.OPENAI_BASE_URL, undefined)
+})
+
+test('buildLaunchEnv openrouter does not emit OPENAI_* vars', async () => {
+  const env = await buildLaunchEnv({
+    profile: 'openrouter',
+    persisted: profile('openrouter', {
+      OPENROUTER_API_KEY: 'sk-or-test',
+    }),
+    goal: 'balanced',
+    processEnv: {},
+  })
+  assert.equal(env.OPENAI_API_KEY, undefined)
+  assert.equal(env.OPENAI_BASE_URL, undefined)
+  assert.equal(env.OPENAI_MODEL, undefined)
+})
+
+// -- OpenRouter failure-oriented and regression tests --
+
+test('buildOpenRouterProfileEnv returns null with no apiKey and no processEnv.OPENROUTER_API_KEY', () => {
+  const env = buildOpenRouterProfileEnv({ processEnv: {} })
+  assert.equal(env, null)
+})
+
+test('buildOpenRouterProfileEnv returns null with empty-string apiKey and no processEnv key', () => {
+  const env = buildOpenRouterProfileEnv({ apiKey: '', processEnv: {} })
+  assert.equal(env, null)
+})
+
+test('buildOpenRouterProfileEnv uses processEnv.OPENROUTER_API_KEY when apiKey option is omitted', () => {
+  const env = buildOpenRouterProfileEnv({
+    processEnv: { OPENROUTER_API_KEY: 'sk-or-env-123' },
+  })
+  assert.ok(env)
+  assert.equal(env!.OPENROUTER_API_KEY, 'sk-or-env-123')
+})
+
+test('buildOpenRouterProfileEnv explicit apiKey wins over processEnv.OPENROUTER_API_KEY', () => {
+  const env = buildOpenRouterProfileEnv({
+    apiKey: 'sk-or-explicit',
+    processEnv: { OPENROUTER_API_KEY: 'sk-or-env' },
+  })
+  assert.ok(env)
+  assert.equal(env!.OPENROUTER_API_KEY, 'sk-or-explicit')
+})
+
+test('buildOpenRouterProfileEnv explicit model and baseUrl both win over processEnv values', () => {
+  const env = buildOpenRouterProfileEnv({
+    apiKey: 'sk-or-test',
+    model: 'explicit-model',
+    baseUrl: 'https://explicit.url/api/v1',
+    processEnv: {
+      OPENROUTER_MODEL: 'env-model',
+      OPENROUTER_BASE_URL: 'https://env.url/api/v1',
+    },
+  })
+  assert.ok(env)
+  assert.equal(env!.OPENROUTER_MODEL, 'explicit-model')
+  assert.equal(env!.OPENROUTER_BASE_URL, 'https://explicit.url/api/v1')
+})
+
+test('buildLaunchEnv openrouter ignores stale OPENAI_API_KEY from processEnv', async () => {
+  const env = await buildLaunchEnv({
+    profile: 'openrouter',
+    persisted: profile('openrouter', {
+      OPENROUTER_API_KEY: 'sk-or-test',
+    }),
+    goal: 'balanced',
+    processEnv: {
+      OPENAI_API_KEY: 'sk-openai-leak',
+      OPENAI_BASE_URL: 'https://leak.url',
+      OPENAI_MODEL: 'leak-model',
+    },
+  })
+  assert.equal(env.OPENAI_API_KEY, undefined)
+  assert.equal(env.OPENAI_BASE_URL, undefined)
+  assert.equal(env.OPENAI_MODEL, undefined)
+})
+
+test('buildLaunchEnv openrouter does not emit CLAUDE_CODE_USE_OPENAI', async () => {
+  const env = await buildLaunchEnv({
+    profile: 'openrouter',
+    persisted: profile('openrouter', {
+      OPENROUTER_API_KEY: 'sk-or-test',
+    }),
+    goal: 'balanced',
+    processEnv: {
+      CLAUDE_CODE_USE_OPENAI: '1',
+    },
+  })
+  assert.equal(env.CLAUDE_CODE_USE_OPENAI, undefined)
+})
+
+test('buildLaunchEnv openrouter sets CLAUDE_CODE_USE_OPENROUTER', async () => {
+  const env = await buildLaunchEnv({
+    profile: 'openrouter',
+    persisted: profile('openrouter', {
+      OPENROUTER_API_KEY: 'sk-or-test',
+    }),
+    goal: 'balanced',
+    processEnv: {},
+  })
+  assert.equal(env.CLAUDE_CODE_USE_OPENROUTER, '1')
+})
+
+test('buildOpenRouterProfileEnv apiKey-only options produce non-empty OPENROUTER_BASE_URL and OPENROUTER_MODEL defaults', () => {
+  const env = buildOpenRouterProfileEnv({
+    apiKey: 'sk-or-test',
+    processEnv: {},
+  })
+  assert.ok(env)
+  assert.ok(env!.OPENROUTER_BASE_URL, 'OPENROUTER_BASE_URL must have a fallback')
+  assert.ok(env!.OPENROUTER_MODEL, 'OPENROUTER_MODEL must have a fallback')
+})
+
+test('XAI profile behavior is unchanged by OpenRouter addition', async () => {
+  const env = await buildLaunchEnv({
+    profile: 'xai',
+    persisted: profile('xai', {
+      XAI_API_KEY: 'xai-test-key',
+    }),
+    goal: 'balanced',
+    processEnv: {},
+  })
+  assert.equal(env.XAI_API_KEY, 'xai-test-key')
+  assert.equal(env.OPENROUTER_API_KEY, undefined)
+  assert.equal(env.CLAUDE_CODE_USE_OPENROUTER, undefined)
+})
+
+test('OpenAI profile behavior is unchanged by OpenRouter addition', async () => {
+  const env = await buildLaunchEnv({
+    profile: 'openai',
+    persisted: profile('openai', {
+      OPENAI_API_KEY: 'sk-openai-test',
+    }),
+    goal: 'balanced',
+    processEnv: {},
+  })
+  assert.equal(env.OPENAI_API_KEY, 'sk-openai-test')
+  assert.equal(env.OPENROUTER_API_KEY, undefined)
+  assert.equal(env.CLAUDE_CODE_USE_OPENROUTER, undefined)
+})
+
+test('OPENROUTER_API_KEY is masked by redactSecretValueForDisplay', () => {
+  const apiKey = 'sk-or-secret-key-12345'
+  const result = redactSecretValueForDisplay(apiKey, {
+    OPENROUTER_API_KEY: apiKey,
+  })
+  assert.notEqual(result, apiKey, 'OPENROUTER_API_KEY must be masked, not returned as plaintext')
+})
+
+test('NVIDIA_API_KEY is masked by redactSecretValueForDisplay', () => {
+  const apiKey = 'nvapi-secret-key-67890'
+  const result = redactSecretValueForDisplay(apiKey, {
+    NVIDIA_API_KEY: apiKey,
+  })
+  assert.notEqual(result, apiKey, 'NVIDIA_API_KEY must be masked, not returned as plaintext')
 })
