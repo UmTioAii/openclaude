@@ -65,6 +65,8 @@ import {
   recommendOllamaModel,
 } from '../utils/providerRecommendation.js'
 import { clearStartupProviderOverrides } from '../utils/providerStartupOverrides.js'
+import { isManagedProviderId } from '../services/model-runtime/managedProviderIds.js'
+import { validateManagedProviderSetup } from '../services/model-runtime/managedProviderSetupValidation.js'
 import { redactUrlForDisplay } from '../utils/urlRedaction.js'
 import { updateSettingsForSource } from '../utils/settings/settings.js'
 import {
@@ -916,6 +918,22 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
         })
         returnToMenu()
         return
+      }
+
+      // Pre-activation validation for managed providers (codex/gemini/nvidia-nim/openrouter).
+      // Must run BEFORE setActiveProviderProfile to prevent state mutation on fatal failure.
+      // Non-managed providers skip this entirely (legacy behavior).
+      const candidateProfile = getProviderProfiles().find(
+        (p) => p.id === profileId,
+      )
+      if (candidateProfile && isManagedProviderId(candidateProfile.provider)) {
+        const preValidation = await validateManagedProviderSetup(candidateProfile, process.env)
+        if (!preValidation.ok && preValidation.severity === 'fatal') {
+          setErrorMessage('Provider setup validation failed: ' + preValidation.reason)
+          setIsActivating(false)
+          returnToMenu()
+          return
+        }
       }
 
       const active = setActiveProviderProfile(profileId)

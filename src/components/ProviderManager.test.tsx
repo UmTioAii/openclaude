@@ -279,7 +279,8 @@ function mockProviderManagerDependencies(
       browserOpened?: boolean | null
       message?: string
     }
-  },
+   validateManagedProviderSetup?: (...args: any[]) => Promise<any>
+ },
 ): void {
   mockProviderProfilesModule({
     addProviderProfile: options?.addProviderProfile,
@@ -377,6 +378,12 @@ function mockProviderManagerDependencies(
         authUrl: 'https://chatgpt.com/codex',
         browserOpened: true,
       })),
+  }))
+
+  mock.module('../services/model-runtime/managedProviderSetupValidation.js', () => ({
+    validateManagedProviderSetup:
+      options?.validateManagedProviderSetup ??
+      (async () => ({ ok: true, capabilities: { routeId: 'openai' } })),
   }))
 }
 
@@ -1757,4 +1764,202 @@ test('ProviderManager hides Codex OAuth setup in bare mode', async () => {
 
   expect(output).toContain('Set up provider')
   expect(output).not.toContain('Codex OAuth')
+})
+
+test('ProviderManager pre-activation: fatal managed validation prevents setActiveProviderProfile', async () => {
+  delete process.env.CLAUDE_CODE_SIMPLE
+  delete process.env.CLAUDE_CODE_USE_GITHUB
+  delete process.env.GITHUB_TOKEN
+  delete process.env.GH_TOKEN
+
+  const codexProfile = {
+    id: 'provider_codex',
+    provider: 'codex',
+    name: 'Codex Managed',
+    baseUrl: 'https://chatgpt.com/backend-api/codex',
+    model: 'codex-mini',
+    apiKey: '',
+  }
+
+  const setActiveProviderProfile = mock(() => codexProfile)
+
+  const fatalValidation = mock(async () => ({
+    ok: false,
+    severity: 'fatal',
+    reason: 'Missing CODEX_API_KEY',
+  }))
+
+  mockProviderManagerDependencies(
+    () => undefined,
+    async () => undefined,
+    {
+      getProviderProfiles: () => [codexProfile],
+      setActiveProviderProfile,
+      validateManagedProviderSetup: fatalValidation,
+    },
+  )
+
+  const nonce = `${Date.now()}-${Math.random()}`
+  const { ProviderManager } = await import(`./ProviderManager.js?ts=${nonce}`)
+  const mounted = await mountProviderManager(ProviderManager, {})
+
+  await waitForFrameOutput(
+    mounted.getOutput,
+    frame => frame.includes('Provider manager') && frame.includes('Set active provider'),
+  )
+
+  // Navigate to the codex profile
+  mounted.stdin.write('j')
+  await Bun.sleep(25)
+  mounted.stdin.write('\r')
+
+  await waitForFrameOutput(
+    mounted.getOutput,
+    frame => frame.includes('Set active provider') && frame.includes('Codex Managed'),
+  )
+
+  // Confirm activation
+  await Bun.sleep(25)
+  mounted.stdin.write('\r')
+
+  // Wait for validation to fire
+  await Bun.sleep(200)
+
+  // When validation returns fatal, setActiveProviderProfile must NOT be called
+  expect(setActiveProviderProfile.mock.calls.length).toBe(0)
+  expect(fatalValidation.mock.calls.length).toBeGreaterThanOrEqual(1)
+
+  await mounted.dispose()
+})
+
+test('ProviderManager pre-activation: ok managed validation allows setActiveProviderProfile', async () => {
+  delete process.env.CLAUDE_CODE_SIMPLE
+  delete process.env.CLAUDE_CODE_USE_GITHUB
+  delete process.env.GITHUB_TOKEN
+  delete process.env.GH_TOKEN
+
+  const openrouterProfile = {
+    id: 'provider_openrouter',
+    provider: 'openrouter',
+    name: 'OpenRouter Managed',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    model: 'openrouter/auto',
+    apiKey: 'or-test-key',
+  }
+
+  const setActiveProviderProfile = mock(() => openrouterProfile)
+
+  const okValidation = mock(async () => ({
+    ok: true,
+    capabilities: { routeId: 'openrouter' },
+  }))
+
+  mockProviderManagerDependencies(
+    () => undefined,
+    async () => undefined,
+    {
+      getProviderProfiles: () => [openrouterProfile],
+      setActiveProviderProfile,
+      validateManagedProviderSetup: okValidation,
+    },
+  )
+
+  const nonce = `${Date.now()}-${Math.random()}`
+  const { ProviderManager } = await import(`./ProviderManager.js?ts=${nonce}`)
+  const mounted = await mountProviderManager(ProviderManager, {})
+
+  await waitForFrameOutput(
+    mounted.getOutput,
+    frame => frame.includes('Provider manager') && frame.includes('Set active provider'),
+  )
+
+  // Navigate to the openrouter profile
+  mounted.stdin.write('j')
+  await Bun.sleep(25)
+  mounted.stdin.write('\r')
+
+  await waitForFrameOutput(
+    mounted.getOutput,
+    frame => frame.includes('Set active provider') && frame.includes('OpenRouter Managed'),
+  )
+
+  // Confirm activation
+  await Bun.sleep(25)
+  mounted.stdin.write('\r')
+
+  // Wait for the activation
+  await waitForCondition(() => setActiveProviderProfile.mock.calls.length > 0)
+
+  // When validation returns ok, setActiveProviderProfile SHOULD be called
+  expect(setActiveProviderProfile.mock.calls.length).toBeGreaterThanOrEqual(1)
+  expect(okValidation.mock.calls.length).toBeGreaterThanOrEqual(1)
+
+  await mounted.dispose()
+})
+
+test('ProviderManager pre-activation: non-managed provider bypasses managed validation', async () => {
+  delete process.env.CLAUDE_CODE_SIMPLE
+  delete process.env.CLAUDE_CODE_USE_GITHUB
+  delete process.env.GITHUB_TOKEN
+  delete process.env.GH_TOKEN
+
+  const openaiProfile = {
+    id: 'provider_openai',
+    provider: 'openai',
+    name: 'OpenAI Standard',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4o',
+    apiKey: 'sk-test',
+  }
+
+  const setActiveProviderProfile = mock(() => openaiProfile)
+
+  // For non-managed providers, buildRuntimeSetupInputFromProfile returns null,
+  // so validateManagedProviderSetup is never called. This mock should never fire.
+  const validationNeverCalled = mock(async () => ({
+    ok: true,
+    capabilities: { routeId: 'openai' },
+  }))
+
+  mockProviderManagerDependencies(
+    () => undefined,
+    async () => undefined,
+    {
+      getProviderProfiles: () => [openaiProfile],
+      setActiveProviderProfile,
+      validateManagedProviderSetup: validationNeverCalled,
+    },
+  )
+
+  const nonce = `${Date.now()}-${Math.random()}`
+  const { ProviderManager } = await import(`./ProviderManager.js?ts=${nonce}`)
+  const mounted = await mountProviderManager(ProviderManager, {})
+
+  await waitForFrameOutput(
+    mounted.getOutput,
+    frame => frame.includes('Provider manager') && frame.includes('Set active provider'),
+  )
+
+  // Navigate to the openai profile
+  mounted.stdin.write('j')
+  await Bun.sleep(25)
+  mounted.stdin.write('\r')
+
+  await waitForFrameOutput(
+    mounted.getOutput,
+    frame => frame.includes('Set active provider') && frame.includes('OpenAI Standard'),
+  )
+
+  // Confirm activation
+  await Bun.sleep(25)
+  mounted.stdin.write('\r')
+
+  // Wait for the activation
+  await waitForCondition(() => setActiveProviderProfile.mock.calls.length > 0)
+
+  // Non-managed provider should activate without managed validation blocking it
+  expect(setActiveProviderProfile.mock.calls.length).toBeGreaterThanOrEqual(1)
+  expect(validationNeverCalled.mock.calls.length).toBe(0)
+
+  await mounted.dispose()
 })
