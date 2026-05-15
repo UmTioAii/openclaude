@@ -6,9 +6,9 @@ import type {
   RuntimeSetupInput,
   RuntimeModelCapabilities,
 } from '../../types.js'
-import type { RouteDescriptor } from '../../../../integrations/routeMetadata.js'
+import type { RouteDescriptor } from '../../types.js'
 
-// ── Helpers ────────────────────────────────────────────────────────────
+// Helpers
 
 /**
  * Construct a minimal RouteDescriptor for tests.
@@ -90,7 +90,7 @@ const validProviderInput = {
   model: 'gpt-5.5',
 }
 
-// ── Identity ───────────────────────────────────────────────────────────
+// Identity
 
 describe('CodexRuntimeAdapter — identity', () => {
   it('id is "codex"', () => {
@@ -102,7 +102,7 @@ describe('CodexRuntimeAdapter — identity', () => {
   })
 })
 
-// ── supportsRoute ──────────────────────────────────────────────────────
+// supportsRoute
 
 describe('CodexRuntimeAdapter — supportsRoute', () => {
   const desc = makeDescriptor()
@@ -136,7 +136,7 @@ describe('CodexRuntimeAdapter — supportsRoute', () => {
   })
 })
 
-// ── validateSetup ──────────────────────────────────────────────────────
+// validateSetup
 
 describe('CodexRuntimeAdapter — validateSetup', () => {
   const baseInput: RuntimeSetupInput = {
@@ -253,7 +253,7 @@ describe('CodexRuntimeAdapter — validateSetup', () => {
   })
 })
 
-// ── verifyStartup ──────────────────────────────────────────────────────
+// verifyStartup
 
 describe('CodexRuntimeAdapter — verifyStartup', () => {
   const baseInput = {
@@ -298,7 +298,7 @@ describe('CodexRuntimeAdapter — verifyStartup', () => {
   })
 })
 
-// ── resolveCapabilities ────────────────────────────────────────────────
+// resolveCapabilities
 
 describe('CodexRuntimeAdapter — resolveCapabilities', () => {
   const baseInput = {
@@ -482,7 +482,7 @@ describe('CodexRuntimeAdapter — resolveCapabilities', () => {
   })
 })
 
-// ── buildPayload ───────────────────────────────────────────────────────
+// buildPayload
 
 describe('CodexRuntimeAdapter — buildPayload', () => {
   const caps = makeCapabilities()
@@ -574,7 +574,7 @@ describe('CodexRuntimeAdapter — buildPayload', () => {
   })
 })
 
-// ── classifyError ──────────────────────────────────────────────────────
+// classifyError
 
 describe('CodexRuntimeAdapter — classifyError', () => {
   it('maps 401 to invalid_api_key without leaking secrets', () => {
@@ -668,7 +668,7 @@ describe('CodexRuntimeAdapter — classifyError', () => {
   })
 })
 
-// ── Capability secrets ─────────────────────────────────────────────────
+// Capability secrets
 
 describe('CodexRuntimeAdapter — no secrets in serialized capabilities', () => {
   it('no raw apiKey/account token appears in serialized capabilities', async () => {
@@ -689,7 +689,7 @@ describe('CodexRuntimeAdapter — no secrets in serialized capabilities', () => 
   })
 })
 
-// ── Deep immutability ──────────────────────────────────────────────────
+// Deep immutability
 
 describe('CodexRuntimeAdapter — buildPayload deep immutability', () => {
   const caps = makeCapabilities()
@@ -754,7 +754,7 @@ describe('CodexRuntimeAdapter — buildPayload deep immutability', () => {
   })
 })
 
-// ── Codex max/xhigh effort capability ──────────────────────────────────
+// Codex max/xhigh effort capability
 
 describe('CodexRuntimeAdapter — codexplan max/xhigh effort', () => {
   const baseInput = {

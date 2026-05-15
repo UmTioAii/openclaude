@@ -162,21 +162,13 @@ describe('buildRuntimeSetupInputFromProfile', () => {
     const result = buildRuntimeSetupInputFromProfile(BANKR_PROFILE, MOCK_ENV)
     expect(result).toBeNull()
   })
-  it('returns null when getRouteDescriptor returns null for a managed provider', () => {
- // Simulate a truly missing route descriptor by mocking getRouteDescriptor.
- // Changing baseUrl to a bogus URL must NOT simulate a missing descriptor —
- // route identity comes from profile.provider only.
- const routeMetadata = require('../../../integrations/routeMetadata.js')
- const originalFn = routeMetadata.getRouteDescriptor
- routeMetadata.getRouteDescriptor = () => null
- try {
-  const result = buildRuntimeSetupInputFromProfile(CODEX_PROFILE, MOCK_ENV)
-  expect(result).toBeNull()
- } finally {
-  routeMetadata.getRouteDescriptor = originalFn
- }
-
- })
+  it('returns null when resolveDescriptor returns null for a managed provider', () => {
+    // Simulate a truly missing route descriptor via the injection seam.
+    // Changing baseUrl to a bogus URL must NOT simulate a missing descriptor --
+    // route identity comes from profile.provider only.
+    const result = buildRuntimeSetupInputFromProfile(CODEX_PROFILE, MOCK_ENV, () => null)
+    expect(result).toBeNull()
+  })
 
 })
 
@@ -224,12 +216,10 @@ describe('validateManagedProviderSetup', () => {
     expect(result.ok).toBe(true)
   })
   it('returns warning when route descriptor is missing for managed provider', async () => {
-    const profileWithMissingDescriptor: ProviderProfile = {
-      ...CODEX_PROFILE,
-      provider: 'nonexistent-provider',
-    }
-
-    const result = await validateManagedProviderSetup(profileWithMissingDescriptor, MOCK_ENV)
+    // Use a real managed provider (codex) but simulate a missing descriptor
+    // via the injection seam -- do not use a non-managed provider like
+    // 'nonexistent-provider' which would get legacy passthrough ok:true.
+    const result = await validateManagedProviderSetup(CODEX_PROFILE, MOCK_ENV, () => null)
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.severity).toBe('warning')

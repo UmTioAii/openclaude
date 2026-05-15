@@ -4,7 +4,7 @@ import { buildDefaultProviderStartupVerifier } from '../../ProviderStartupVerifi
 import { buildDefaultRuntimeAdapterRegistry } from '../../RuntimeAdapterRegistry.js'
 import { LegacyRuntimePassthroughAdapter } from '../../adapters/legacy/LegacyRuntimePassthroughAdapter.js'
 import type { RuntimeStartupInput } from '../../types.js'
-import type { RouteDescriptor } from '../../../../integrations/routeMetadata.js'
+import type { RouteDescriptor } from '../../types.js'
 
 /**
  * PR1 integration test: legacy coexistence guarantees.

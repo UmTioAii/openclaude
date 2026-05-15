@@ -10,16 +10,10 @@ import type {
   RuntimeModelCapabilities,
   RuntimeRouteResolution,
   RuntimeSetupInput,
-} from './types.js'
-
-import type {
   ModelCatalogEntry,
   TransportKind,
-} from '../../integrations/descriptors.js'
-
-import type {
   RouteDescriptor,
-} from '../../integrations/routeMetadata.js'
+} from './types.js'
 
 import {
   createAuthFingerprint,
@@ -30,7 +24,7 @@ import {
   normalizeRuntimeEndpoint,
 } from './RuntimeEndpointNormalizer.js'
 
-// ── Local types ──────────────────────────────────────────────────────────
+// Local types
 
 export type ResolveRuntimeRouteInput = {
   routeId: string
@@ -53,7 +47,7 @@ export type ResolveRuntimeCacheKeyInput = {
   }
 }
 
-// ── resolveRuntimeRoute ──────────────────────────────────────────────────
+// resolveRuntimeRoute
 
 /**
  * Resolve route/metadata from setup input.

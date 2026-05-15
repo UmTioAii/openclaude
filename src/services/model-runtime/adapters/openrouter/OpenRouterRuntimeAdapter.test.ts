@@ -7,9 +7,9 @@ import type {
   RuntimeModelCapabilities,
   ResolveRuntimeCapabilitiesInput,
 } from '../../types.js'
-import type { RouteDescriptor } from '../../../../integrations/routeMetadata.js'
+import type { RouteDescriptor } from '../../types.js'
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// Helpers
 
 /**
  * Construct a minimal RouteDescriptor for tests.

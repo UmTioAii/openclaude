@@ -8,7 +8,7 @@ import type {
   RuntimeModelCapabilities,
 } from '../../types.js'
 
-import type { RouteDescriptor } from '../../../../integrations/routeMetadata.js'
+import type { RouteDescriptor } from '../../types.js'
 
 export class LegacyRuntimePassthroughAdapter
   implements RuntimeProviderAdapter

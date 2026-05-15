@@ -1,6 +1,6 @@
 import type { RuntimeProviderAdapter } from './types.js'
 
-import type { RouteDescriptor } from '../../integrations/routeMetadata.js'
+import type { RouteDescriptor } from './types.js'
 
 import { LegacyRuntimePassthroughAdapter } from './adapters/legacy/LegacyRuntimePassthroughAdapter.js'
 import { NvidiaNimRuntimeAdapter } from './adapters/nvidia/NvidiaNimRuntimeAdapter.js'

@@ -12,13 +12,10 @@ import type {
 
 import type {
   ModelCatalogEntry,
-} from '../../../integrations/descriptors.js'
-
-import type {
   RouteDescriptor,
-} from '../../../integrations/routeMetadata.js'
+} from '../types.js'
 
-// ── Test helpers ──────────────────────────────────────────────────────
+// Test helpers
 
 // RouteDescriptor is a union of GatewayDescriptor | VendorDescriptor.
 // Constructing a minimal valid VendorDescriptor requires many fields.

@@ -8,13 +8,12 @@ import type {
   RuntimeModelCapabilities,
   BuildRuntimePayloadInput,
   ProviderPayload,
-  RuntimeProviderErrorClassification,
 } from '../../types.js'
-import type { RouteDescriptor } from '../../../../integrations/routeMetadata.js'
+import type { RouteDescriptor } from '../../types.js'
 import { applyQuirkPolicy } from '../../RuntimeQuirkPolicy.js'
 import { redactErrorMessage } from '../../RuntimeSecurity.js'
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// Constants
 
 const ADAPTER_ID = 'openrouter'
 const ADAPTER_LABEL = 'OpenRouter'

@@ -13,17 +13,17 @@ import type {
   RuntimeProviderErrorClassification,
 } from '../../types.js'
 
-import type { RouteDescriptor } from '../../../../integrations/routeMetadata.js'
+import type { RouteDescriptor } from '../../types.js'
 
 import { applyQuirkPolicy } from '../../RuntimeQuirkPolicy.js'
 import { redactErrorMessage } from '../../RuntimeSecurity.js'
 
-// ── Adapter identity ──────────────────────────────────────────────────
+// Adapter identity
 
 const ADAPTER_ID = 'nvidia-nim' as const
 const ADAPTER_LABEL = 'Nvidia NIM'
 
-// ── NvidiaNimRuntimeAdapter ───────────────────────────────────────────
+// NvidiaNimRuntimeAdapter
 
 export class NvidiaNimRuntimeAdapter implements RuntimeProviderAdapter {
   readonly id = ADAPTER_ID

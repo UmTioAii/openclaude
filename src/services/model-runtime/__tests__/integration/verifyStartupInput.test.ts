@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test'
 import type { RuntimeStartupInput } from '../../types.js'
-import type { RouteDescriptor } from '../../../../integrations/routeMetadata.js'
+import type { RouteDescriptor } from '../../types.js'
 import { buildDefaultRuntimeAdapterRegistry } from '../../RuntimeAdapterRegistry.js'
 import { buildDefaultProviderStartupVerifier } from '../../ProviderStartupVerifier.js'
 

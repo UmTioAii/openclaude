@@ -12,9 +12,8 @@ import { isManagedProviderId } from './managedProviderIds.js'
 import {
   buildDefaultProviderStartupVerifier,
 } from './ProviderStartupVerifier.js'
-import {
-  getRouteDescriptor,
-} from '../../integrations/routeMetadata.js'
+import { getManagedProviderDescriptor } from './localProviderDefaults.js'
+import type { RouteDescriptor } from './types.js'
 
 /**
  * Build a RuntimeSetupInput from a ProviderProfile (before activation).
@@ -26,13 +25,14 @@ import {
 export function buildRuntimeSetupInputFromProfile(
   profile: ProviderProfile,
   processEnv: NodeJS.ProcessEnv,
+  resolveDescriptor: (routeId: string) => RouteDescriptor | null = getManagedProviderDescriptor,
 ): RuntimeSetupInput | null {
   if (!isManagedProviderId(profile.provider)) {
     return null
   }
 
   const routeId = profile.provider
-  const descriptor = getRouteDescriptor(routeId)
+  const descriptor = resolveDescriptor(routeId)
 
   if (!descriptor) {
     return null
@@ -62,12 +62,13 @@ export function buildRuntimeSetupInputFromProfile(
 export async function validateManagedProviderSetup(
   profile: ProviderProfile,
   processEnv: NodeJS.ProcessEnv,
+  resolveDescriptor?: (routeId: string) => RouteDescriptor | null,
 ): Promise<RuntimeSetupResult> {
   if (!isManagedProviderId(profile.provider)) {
     return { ok: true, capabilities: makeLegacyPassthroughCapabilities(profile) }
   }
 
-  const input = buildRuntimeSetupInputFromProfile(profile, processEnv)
+  const input = buildRuntimeSetupInputFromProfile(profile, processEnv, resolveDescriptor)
 
   if (!input) {
     // Managed provider but no route descriptor found — this is a

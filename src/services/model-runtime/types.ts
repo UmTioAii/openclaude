@@ -1,11 +1,89 @@
-import type {
-  ModelCatalogEntry,
-  TransportKind,
-} from '../../integrations/descriptors.js'
+// PR1 -- Managed Adapter Runtime: types
+// Local runtime types for model-runtime, decoupled from src/integrations
+// No dependency on descriptor system for PR1 managed providers.
 
-import type {
-  RouteDescriptor,
-} from '../../integrations/routeMetadata.js'
+// Local minimal types to replace integration imports
+export type RuntimeCapabilityFlags = {
+  supportsVision?: boolean
+  supportsStreaming?: boolean
+  supportsFunctionCalling?: boolean
+  supportsJsonMode?: boolean
+  supportsReasoning?: boolean
+  supportsPreciseTokenCount?: boolean
+  supportsEmbeddings?: boolean
+}
+
+export type RuntimeMaxTokensField = 'max_tokens' | 'max_completion_tokens'
+
+export type ModelCatalogEntry = {
+  id: string
+  apiName: string
+  label?: string
+  default?: boolean
+  hidden?: boolean
+  capabilities?: RuntimeCapabilityFlags
+  contextWindow?: number
+  maxOutputTokens?: number
+  transportOverrides?: {
+    openaiShim?: Partial<RuntimeOpenAIShimConfig>
+  }
+  [key: string]: unknown
+}
+
+export type TransportKind =
+  | 'anthropic-native'
+  | 'anthropic-proxy'
+  | 'openai-compatible'
+  | 'local'
+  | 'gemini-native'
+  | 'bedrock'
+  | 'vertex'
+  | 'chat_completions'
+  | 'completions'
+  | 'embeddings'
+  | 'unknown'
+
+export type RuntimeOpenAIShimConfig = {
+  headers?: Record<string, string>
+  supportsApiFormatSelection?: boolean
+  supportsAuthHeaders?: boolean
+  ui?: {
+    showAuthHeader?: boolean
+    showAuthHeaderValue?: boolean
+    showCustomHeaders?: boolean
+  }
+  defaultAuthHeader?: {
+    name: string
+    scheme?: string
+  }
+  responsesApiModelPrefixes?: string[]
+  preserveReasoningContent?: boolean
+  requireReasoningContentOnAssistantMessages?: boolean
+  reasoningContentFallback?: '' | 'omit'
+  thinkingRequestFormat?: 'none' | 'deepseek-compatible'
+  maxTokensField?: RuntimeMaxTokensField
+  removeBodyFields?: string[]
+  [key: string]: unknown
+}
+
+export type RuntimeTransportConfig = {
+  kind: TransportKind
+  openaiShim?: RuntimeOpenAIShimConfig
+  [key: string]: unknown
+}
+
+export type RouteDescriptor = {
+  id: string
+  label: string
+  defaultModel?: string
+  setup: {
+    requiresAuth: boolean
+    authMode?: string
+    credentialEnvVars?: string[]
+  }
+  transportConfig: RuntimeTransportConfig
+  [key: string]: unknown
+}
 
 export type ManagedProviderId =
   | 'codex'
