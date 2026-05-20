@@ -1,5 +1,68 @@
 # Changelog
 
+## [0.13.0](https://github.com/Gitlawb/openclaude/compare/v0.12.1...v0.13.0) (2026-05-17)
+
+
+### Features
+
+* **export:** add Markdown and JSON conversation exports ([#1193](https://github.com/Gitlawb/openclaude/issues/1193)) ([271bad4](https://github.com/Gitlawb/openclaude/commit/271bad4209563176ff240c89535cbb64990c23ff))
+
+
+### Bug Fixes
+
+* **bashPermissions:** apply MAX_SUBCOMMANDS cap in sandbox auto-allow path ([#1057](https://github.com/Gitlawb/openclaude/issues/1057)) ([#1166](https://github.com/Gitlawb/openclaude/issues/1166)) ([c53ef18](https://github.com/Gitlawb/openclaude/commit/c53ef1871627a4497c042199449f4f538a9c6ffa))
+* **gemini:** parse raw tool call text ([#1212](https://github.com/Gitlawb/openclaude/issues/1212)) ([2d20109](https://github.com/Gitlawb/openclaude/commit/2d20109edc8b238d7c6118ab9c5a4126ad0726bc))
+* **spinner:** prevent layout shift during thinking and orphaned task icons ([#1211](https://github.com/Gitlawb/openclaude/issues/1211)) ([8470832](https://github.com/Gitlawb/openclaude/commit/8470832e5c705d98dc0ec50066be3537c8a1b589))
+* **websearch:** surface adapter failure when auto mode falls back to native ([#994](https://github.com/Gitlawb/openclaude/issues/994)) ([#1168](https://github.com/Gitlawb/openclaude/issues/1168)) ([b3b7714](https://github.com/Gitlawb/openclaude/commit/b3b771476d8c3678c0225b32515e02c1dd730571))
+
+## [0.12.1](https://github.com/Gitlawb/openclaude/compare/v0.12.0...v0.12.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* **entrypoint:** apply --max-old-space-size=8192 universally, not just CCR ([#1191](https://github.com/Gitlawb/openclaude/issues/1191)) ([4d0603e](https://github.com/Gitlawb/openclaude/commit/4d0603e9906b24d0f4f3fc683db1950879875e16))
+* **gemini:** preserve tool calls through opengateway ([#1204](https://github.com/Gitlawb/openclaude/issues/1204)) ([13a0901](https://github.com/Gitlawb/openclaude/commit/13a090162f9b0c53080aaaa1cfa937cd9981596e))
+
+## [0.12.0](https://github.com/Gitlawb/openclaude/compare/v0.11.0...v0.12.0) (2026-05-16)
+
+
+### Features
+
+* **opengateway:** add Gemini 3.1 Flash Lite + GLM 5.1 FP8 to catalog ([#1194](https://github.com/Gitlawb/openclaude/issues/1194)) ([4d04f5b](https://github.com/Gitlawb/openclaude/commit/4d04f5bf4f1acc9d3cc00dab0b1b697e13711207))
+
+
+### Bug Fixes
+
+* **openai-shim:** surface in-stream errors and truncation hints ([#1174](https://github.com/Gitlawb/openclaude/issues/1174)) ([6174d75](https://github.com/Gitlawb/openclaude/commit/6174d75e983e80601ba369a595d7b64580e3bd51))
+* Reduce stable stringify heap usage ([#1104](https://github.com/Gitlawb/openclaude/issues/1104)) ([c433d20](https://github.com/Gitlawb/openclaude/commit/c433d20fdc5666736c800a942bbcc0f0d85cc296))
+
+## [0.11.0](https://github.com/Gitlawb/openclaude/compare/v0.10.0...v0.11.0) (2026-05-14)
+
+
+### Features
+
+* add sponsored tips with frequency-gated display ([#1140](https://github.com/Gitlawb/openclaude/issues/1140)) ([a4cbb78](https://github.com/Gitlawb/openclaude/commit/a4cbb785854619689dbedcec54b6b7739529fdd0))
+* **groq:** dynamic model discovery with mapModel filtering and hybrid catalog ([#1143](https://github.com/Gitlawb/openclaude/issues/1143)) ([a65bdb4](https://github.com/Gitlawb/openclaude/commit/a65bdb41b84e7454ef2f50921ea56f04464f0455))
+* implement high-performance SQLite storage layer with JSON audit log (Phase 2 Masterpiece) ([#1106](https://github.com/Gitlawb/openclaude/issues/1106)) ([e12432e](https://github.com/Gitlawb/openclaude/commit/e12432eaf68be2ded987f83b16f1d4ae994d4d2b))
+* **nvidia-nim:** add latest chat models, remove duplicate Mixtral 8x22B entry. Verified against integrate.api.nvidia.com/v1/models on 2026-05-13. Tracks [#1099](https://github.com/Gitlawb/openclaude/issues/1099). ([#1145](https://github.com/Gitlawb/openclaude/issues/1145)) ([0f6668f](https://github.com/Gitlawb/openclaude/commit/0f6668f554a9ed687095a3ce244fdf246cfe884c))
+* **provider:** add Gitlawb Opengateway as default provider with MiMo ([#1165](https://github.com/Gitlawb/openclaude/issues/1165)) ([5b5ba88](https://github.com/Gitlawb/openclaude/commit/5b5ba8853bd8b3d922b957a96484e1092cd3a6a3))
+* **provider:** add Venice official provider ([#1109](https://github.com/Gitlawb/openclaude/issues/1109)) ([f9621ab](https://github.com/Gitlawb/openclaude/commit/f9621ab575762453bff5d224e1e6f44067d9b1f3))
+* **provider:** add Xiaomi MiMo integration ([#1152](https://github.com/Gitlawb/openclaude/issues/1152)) ([18483e4](https://github.com/Gitlawb/openclaude/commit/18483e4d96e9763993af116112a0fee4877a1227))
+
+
+### Bug Fixes
+
+* **agent:** prevent mid-flight peeking and taking over of forks ([#1153](https://github.com/Gitlawb/openclaude/issues/1153)) ([74e3947](https://github.com/Gitlawb/openclaude/commit/74e3947d881802420b860f1e6b9f156fecdd65d7))
+* **bashPermissions:** block command substitution in array subscript position ([#1111](https://github.com/Gitlawb/openclaude/issues/1111)) ([4a98a4a](https://github.com/Gitlawb/openclaude/commit/4a98a4a227d148a3ff0ac05f20f32a0f7888a5be))
+* **bashSecurity:** tighten fc -e detection to avoid long-flag false positives ([#1107](https://github.com/Gitlawb/openclaude/issues/1107)) ([0c88def](https://github.com/Gitlawb/openclaude/commit/0c88defbe0014f434b6ae5d419c8a6234463294e))
+* **codex:** normalize empty MCP object schemas ([#1121](https://github.com/Gitlawb/openclaude/issues/1121)) ([7ea74f2](https://github.com/Gitlawb/openclaude/commit/7ea74f29f0cf01654da37deef52d9350a34b6c89))
+* **errors:** surface re-auth hint on OAuth token expiry 401s ([#1042](https://github.com/Gitlawb/openclaude/issues/1042)) ([#1142](https://github.com/Gitlawb/openclaude/issues/1142)) ([921594e](https://github.com/Gitlawb/openclaude/commit/921594efc46792d2af969ab948a2ccde3c64e062))
+* hide missing-module slash command stubs ([#1136](https://github.com/Gitlawb/openclaude/issues/1136)) ([cf33f03](https://github.com/Gitlawb/openclaude/commit/cf33f0375543afc26492426f55f8d81647288e79))
+* **integrations:** cap gpt-5.5 context window at Codex effective limit ([#1118](https://github.com/Gitlawb/openclaude/issues/1118)) ([#1141](https://github.com/Gitlawb/openclaude/issues/1141)) ([cac11dc](https://github.com/Gitlawb/openclaude/commit/cac11dce0d5b3850c0f338fda0bbb15ba25f6aa3))
+* replace raw abort signal timeouts ([#1123](https://github.com/Gitlawb/openclaude/issues/1123)) ([877b4dc](https://github.com/Gitlawb/openclaude/commit/877b4dc88600062d8bbfaf764bfbd828c55699e8))
+* surface actionable error when fetch fails in _doOpenAIRequest ([#447](https://github.com/Gitlawb/openclaude/issues/447)) ([3af0924](https://github.com/Gitlawb/openclaude/commit/3af092441d36d77cc5b23c69225be568ef8d355c))
+* update vulnerable dependencies ([#1149](https://github.com/Gitlawb/openclaude/issues/1149)) ([5328f57](https://github.com/Gitlawb/openclaude/commit/5328f57a724b15fcf688cdfd0c1d52c3de926059))
+
 ## [0.10.0](https://github.com/Gitlawb/openclaude/compare/v0.9.2...v0.10.0) (2026-05-11)
 
 

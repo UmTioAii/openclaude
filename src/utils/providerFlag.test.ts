@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import {
+  acquireSharedMutationLock,
+  releaseSharedMutationLock,
+} from '../test/sharedMutationLock.js'
+import {
   parseProviderFlag,
   parseModelFlag,
   applyProviderFlag,
@@ -25,13 +29,15 @@ const ENV_KEYS = [
   'XAI_API_KEY',
   'MINIMAX_API_KEY',
   'VENICE_API_KEY',
+  'MIMO_API_KEY',
   'MISTRAL_MODEL',
   'ANTHROPIC_MODEL',
 ]
 
 const originalEnv: Record<string, string | undefined> = {}
 
-beforeEach(() => {
+beforeEach(async () => {
+  await acquireSharedMutationLock('utils/providerFlag.test.ts')
   for (const key of ENV_KEYS) {
     originalEnv[key] = process.env[key]
     delete process.env[key]
@@ -55,6 +61,7 @@ const RESET_KEYS = [
   'XAI_API_KEY',
   'MINIMAX_API_KEY',
   'VENICE_API_KEY',
+  'MIMO_API_KEY',
   'MISTRAL_MODEL',
   'ANTHROPIC_MODEL',
 ] as const
@@ -66,12 +73,16 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  for (const key of ENV_KEYS) {
-    if (originalEnv[key] === undefined) {
-      delete process.env[key]
-    } else {
-      process.env[key] = originalEnv[key]
+  try {
+    for (const key of ENV_KEYS) {
+      if (originalEnv[key] === undefined) {
+        delete process.env[key]
+      } else {
+        process.env[key] = originalEnv[key]
+      }
     }
+  } finally {
+    releaseSharedMutationLock()
   }
 })
 
@@ -122,6 +133,7 @@ describe('VALID_PROVIDERS', () => {
     expect(VALID_PROVIDERS).toContain('atomic-chat')
     expect(VALID_PROVIDERS).toContain('zai')
     expect(VALID_PROVIDERS).toContain('venice')
+    expect(VALID_PROVIDERS).toContain('xiaomi-mimo')
   })
 })
 
@@ -269,6 +281,21 @@ describe('applyProviderFlag - descriptor-backed openai-compatible routes', () =>
     expect(process.env.OPENAI_BASE_URL).toBe('https://openrouter.ai/api/v1')
   })
 
+  test('clears MIMO_API_KEY copied into OPENAI_API_KEY when switching routes', () => {
+    process.env.MIMO_API_KEY = 'mimo-live-key'
+
+    const mimoResult = applyProviderFlag('xiaomi-mimo', [])
+    expect(mimoResult.error).toBeUndefined()
+    expect(process.env.OPENAI_API_KEY).toBe('mimo-live-key')
+
+    process.env.OPENAI_BASE_URL = 'https://openrouter.ai/api/v1'
+    const openrouterResult = applyProviderFlag('openrouter', [])
+
+    expect(openrouterResult.error).toBeUndefined()
+    expect(process.env.OPENAI_API_KEY).toBeUndefined()
+    expect(process.env.OPENAI_BASE_URL).toBe('https://openrouter.ai/api/v1')
+  })
+
   test('clears XAI_API_KEY copied into OPENAI_API_KEY when switching routes', () => {
     process.env.XAI_API_KEY = 'xai-live-key'
 
@@ -330,6 +357,26 @@ describe('applyProviderFlag - zai', () => {
     expect(process.env.CLAUDE_CODE_USE_OPENAI).toBe('1')
     expect(process.env.OPENAI_BASE_URL).toBe('https://api.z.ai/api/coding/paas/v4')
     expect(process.env.OPENAI_MODEL).toBe('GLM-5.1')
+  })
+})
+
+describe('applyProviderFlag - xiaomi-mimo', () => {
+  test('sets Xiaomi MiMo OpenAI-compatible defaults and mirrors MIMO_API_KEY', () => {
+    process.env.MIMO_API_KEY = 'mimo-secret-key'
+
+    const result = applyProviderFlag('xiaomi-mimo', [])
+
+    expect(result.error).toBeUndefined()
+    expect(process.env.CLAUDE_CODE_USE_OPENAI).toBe('1')
+    expect(process.env.OPENAI_BASE_URL).toBe('https://api.xiaomimimo.com/v1')
+    expect(process.env.OPENAI_MODEL).toBe('mimo-v2.5-pro')
+    expect(process.env.OPENAI_API_KEY).toBe('mimo-secret-key')
+  })
+
+  test('sets Xiaomi MiMo OPENAI_MODEL when --model is provided', () => {
+    applyProviderFlag('xiaomi-mimo', ['--model', 'mimo-v2-flash'])
+
+    expect(process.env.OPENAI_MODEL).toBe('mimo-v2-flash')
   })
 })
 

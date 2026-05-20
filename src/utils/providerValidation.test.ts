@@ -1,5 +1,9 @@
 import { afterEach, beforeAll, beforeEach, expect, test } from 'bun:test'
 import { ensureIntegrationsLoaded, getAllGateways } from '../integrations/index.js'
+import {
+  acquireSharedMutationLock,
+  releaseSharedMutationLock,
+} from '../test/sharedMutationLock.js'
 
 import {
   getProviderValidationError,
@@ -27,6 +31,7 @@ const ENV_KEYS = [
   'OPENROUTER_API_KEY',
   'DEEPSEEK_API_KEY',
   'MOONSHOT_API_KEY',
+  'MIMO_API_KEY',
   'GEMINI_API_KEY',
   'GOOGLE_API_KEY',
   'GEMINI_ACCESS_TOKEN',
@@ -40,7 +45,8 @@ beforeAll(() => {
   ensureIntegrationsLoaded()
 })
 
-beforeEach(() => {
+beforeEach(async () => {
+  await acquireSharedMutationLock('utils/providerValidation.test.ts')
   for (const key of ENV_KEYS) {
     originalEnv[key] = process.env[key]
     delete process.env[key]
@@ -48,12 +54,16 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  for (const key of ENV_KEYS) {
-    if (originalEnv[key] === undefined) {
-      delete process.env[key]
-    } else {
-      process.env[key] = originalEnv[key]
+  try {
+    for (const key of ENV_KEYS) {
+      if (originalEnv[key] === undefined) {
+        delete process.env[key]
+      } else {
+        process.env[key] = originalEnv[key]
+      }
     }
+  } finally {
+    releaseSharedMutationLock()
   }
 })
 
@@ -220,6 +230,15 @@ test('moonshot validation accepts MOONSHOT_API_KEY without OPENAI_API_KEY', asyn
   process.env.CLAUDE_CODE_USE_OPENAI = '1'
   process.env.OPENAI_BASE_URL = 'https://api.moonshot.ai/v1'
   process.env.MOONSHOT_API_KEY = 'moonshot-live-key'
+  delete process.env.OPENAI_API_KEY
+
+  await expect(getProviderValidationError(process.env)).resolves.toBeNull()
+})
+
+test('xiaomi mimo validation accepts MIMO_API_KEY without OPENAI_API_KEY', async () => {
+  process.env.CLAUDE_CODE_USE_OPENAI = '1'
+  process.env.OPENAI_BASE_URL = 'https://api.xiaomimimo.com/v1'
+  process.env.MIMO_API_KEY = 'mimo-live-key'
   delete process.env.OPENAI_API_KEY
 
   await expect(getProviderValidationError(process.env)).resolves.toBeNull()

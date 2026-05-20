@@ -2,8 +2,9 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import test from 'node:test'
+import test, { afterEach, beforeEach } from 'node:test'
 
+import { acquireEnvMutex, releaseEnvMutex } from '../entrypoints/sdk/shared.js'
 import { DEFAULT_CODEX_BASE_URL } from '../services/api/providerConfig.js'
 import {
   applySavedProfileToCurrentSession,
@@ -14,8 +15,6 @@ import {
   buildLaunchEnv,
   buildOllamaProfileEnv,
   buildOpenAIProfileEnv,
-  buildOpenRouterProfileEnv,
-  isProviderProfile,
   clearPersistedCodexOAuthProfile,
   createProfileFile,
   deleteProfileFile,
@@ -52,6 +51,14 @@ async function importFreshProviderProfileModule() {
 }
 
 const missingCodexAuthPath = join(tmpdir(), 'openclaude-missing-codex-auth.json')
+
+beforeEach(async () => {
+  await acquireEnvMutex()
+})
+
+afterEach(() => {
+  releaseEnvMutex()
+})
 
 test('matching persisted ollama env is reused for ollama launch', async () => {
   const env = await buildLaunchEnv({
@@ -605,15 +612,15 @@ test('saveProfileFile defaults to user config instead of the working directory',
       OPENAI_MODEL: 'gpt-4o',
     })
 
-    const filePath = saveProfileFile(persisted)
+    const filePath = saveProfileFile(persisted, { configDir })
 
     assert.equal(filePath, join(configDir, PROFILE_FILE_NAME))
-    assert.equal(getDefaultProfileFilePath(), join(configDir, PROFILE_FILE_NAME))
+    assert.equal(getDefaultProfileFilePath(configDir), join(configDir, PROFILE_FILE_NAME))
     assert.equal(existsSync(join(cwd, PROFILE_FILE_NAME)), false)
     if (process.platform !== 'win32') {
       assert.equal(statSync(configDir).mode & 0o777, 0o700)
     }
-    assert.deepEqual(loadProfileFile(), persisted)
+    assert.deepEqual(loadProfileFile({ configDir, cwd }), persisted)
   } finally {
     process.chdir(previousCwd)
     if (previousConfigDir === undefined) {
@@ -646,7 +653,7 @@ test('loadProfileFile keeps project-local files as a legacy fallback', () => {
       'utf8',
     )
 
-    assert.deepEqual(loadProfileFile(), legacyProfile)
+    assert.deepEqual(loadProfileFile({ configDir, cwd }), legacyProfile)
   } finally {
     process.chdir(previousCwd)
     if (previousConfigDir === undefined) {
@@ -680,7 +687,7 @@ test('loadProfileFile does not fall back when user config profile is invalid', (
       'utf8',
     )
 
-    assert.equal(loadProfileFile(), null)
+    assert.equal(loadProfileFile({ configDir, cwd }), null)
   } finally {
     process.chdir(previousCwd)
     if (previousConfigDir === undefined) {
@@ -723,6 +730,48 @@ test('deleteProfileFile clears the default profile and legacy workspace fallback
     assert.equal(existsSync(join(configDir, PROFILE_FILE_NAME)), false)
     assert.equal(existsSync(join(cwd, PROFILE_FILE_NAME)), false)
     assert.equal(loadProfileFile(), null)
+  } finally {
+    process.chdir(previousCwd)
+    if (previousConfigDir === undefined) {
+      delete process.env.CLAUDE_CONFIG_DIR
+    } else {
+      process.env.CLAUDE_CONFIG_DIR = previousConfigDir
+    }
+    rmSync(cwd, { recursive: true, force: true })
+    rmSync(configDir, { recursive: true, force: true })
+  }
+})
+
+test('deleteProfileFile with configDir and cwd clears both user config and legacy fallback', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'openclaude-delete-mixed-profile-'))
+  const configDir = mkdtempSync(join(tmpdir(), 'openclaude-delete-mixed-config-profile-'))
+  const previousConfigDir = process.env.CLAUDE_CONFIG_DIR
+  const previousCwd = process.cwd()
+
+  try {
+    process.env.CLAUDE_CONFIG_DIR = configDir
+    process.chdir(cwd)
+
+    const configProfile = createProfileFile('openai', {
+      OPENAI_API_KEY: 'sk-test',
+    })
+    const legacyProfile = createProfileFile('ollama', {
+      OPENAI_BASE_URL: 'http://localhost:11434/v1',
+      OPENAI_MODEL: 'llama3.1:8b',
+    })
+
+    saveProfileFile(configProfile, { configDir, cwd })
+    writeFileSync(
+      join(cwd, PROFILE_FILE_NAME),
+      JSON.stringify(legacyProfile, null, 2),
+      'utf8',
+    )
+
+    deleteProfileFile({ configDir, cwd })
+
+    assert.equal(existsSync(join(configDir, PROFILE_FILE_NAME)), false)
+    assert.equal(existsSync(join(cwd, PROFILE_FILE_NAME)), false)
+    assert.equal(loadProfileFile({ configDir, cwd }), null)
   } finally {
     process.chdir(previousCwd)
     if (previousConfigDir === undefined) {
@@ -805,7 +854,7 @@ test('clearPersistedCodexOAuthProfile removes only persisted Codex OAuth profile
   }
 })
 
-test('clearPersistedCodexOAuthProfile clears both default and legacy OAuth profiles', () => {
+test('clearPersistedCodexOAuthProfile clears both default and legacy OAuth profiles', async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'openclaude-clear-oauth-profile-'))
   const configDir = mkdtempSync(join(tmpdir(), 'openclaude-clear-oauth-config-'))
   const previousConfigDir = process.env.CLAUDE_CONFIG_DIR
@@ -815,27 +864,35 @@ test('clearPersistedCodexOAuthProfile clears both default and legacy OAuth profi
     process.env.CLAUDE_CONFIG_DIR = configDir
     process.chdir(cwd)
 
-    const oauthProfile = createProfileFile('codex', {
+    const {
+      PROFILE_FILE_NAME: freshProfileFileName,
+      clearPersistedCodexOAuthProfile: clearPersistedCodexOAuthProfileFresh,
+      createProfileFile: createProfileFileFresh,
+      loadProfileFile: loadProfileFileFresh,
+      saveProfileFile: saveProfileFileFresh,
+    } = await importFreshProviderProfileModule()
+
+    const oauthProfile = createProfileFileFresh('codex', {
       OPENAI_MODEL: 'codexplan',
       OPENAI_BASE_URL: DEFAULT_CODEX_BASE_URL,
       CHATGPT_ACCOUNT_ID: 'acct_oauth',
       CODEX_CREDENTIAL_SOURCE: 'oauth',
     })
 
-    saveProfileFile(oauthProfile)
+    saveProfileFileFresh(oauthProfile, { configDir })
     writeFileSync(
-      join(cwd, PROFILE_FILE_NAME),
+      join(cwd, freshProfileFileName),
       JSON.stringify(oauthProfile, null, 2),
       'utf8',
     )
 
     assert.equal(
-      clearPersistedCodexOAuthProfile(),
-      join(configDir, PROFILE_FILE_NAME),
+      clearPersistedCodexOAuthProfileFresh({ configDir, cwd }),
+      join(configDir, freshProfileFileName),
     )
-    assert.equal(existsSync(join(configDir, PROFILE_FILE_NAME)), false)
-    assert.equal(existsSync(join(cwd, PROFILE_FILE_NAME)), false)
-    assert.equal(loadProfileFile(), null)
+    assert.equal(existsSync(join(configDir, freshProfileFileName)), false)
+    assert.equal(existsSync(join(cwd, freshProfileFileName)), false)
+    assert.equal(loadProfileFileFresh({ configDir, cwd }), null)
   } finally {
     process.chdir(previousCwd)
     if (previousConfigDir === undefined) {
@@ -1129,6 +1186,29 @@ test('buildStartupEnvFromProfile preserves plural-profile env when the legacy fi
   assert.equal(env.CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED_ID, 'saved_moonshot')
 })
 
+test('buildStartupEnvFromProfile ignores the legacy file when a configured provider profile already selected a concrete env', async () => {
+  const processEnv: NodeJS.ProcessEnv = {
+    CLAUDE_CODE_USE_OPENAI: '1',
+    OPENAI_BASE_URL: 'https://api.moonshot.ai/v1',
+    OPENAI_MODEL: 'kimi-k2.6',
+  }
+
+  const env = await buildStartupEnvFromProfile({
+    persisted: profile('openai', {
+      OPENAI_API_KEY: 'sk-stale',
+      OPENAI_MODEL: 'Meta-Llama-3.1-70B-Instruct',
+      OPENAI_BASE_URL: 'https://api.sambanova.ai/v1',
+    }),
+    processEnv,
+    hasConfiguredProviderProfile: true,
+  })
+
+  assert.equal(env, processEnv)
+  assert.equal(env.OPENAI_BASE_URL, 'https://api.moonshot.ai/v1')
+  assert.equal(env.OPENAI_MODEL, 'kimi-k2.6')
+  assert.equal(env.OPENAI_API_KEY, undefined)
+})
+
 test('buildStartupEnvFromProfile falls back to legacy file when plural system has not applied', async () => {
   // Counter-example: first-run user with only the legacy file (no plural
   // active profile yet). The legacy file is the correct source, so the
@@ -1150,6 +1230,48 @@ test('buildStartupEnvFromProfile falls back to legacy file when plural system ha
   assert.equal(env.OPENAI_API_KEY, 'sk-legacy')
   assert.equal(env.OPENAI_BASE_URL, 'https://api.openai.com/v1')
   assert.equal(env.OPENAI_MODEL, 'gpt-4o')
+})
+
+test('buildStartupEnvFromProfile still falls back to the legacy file when configured profiles exist but startup env is incomplete', async () => {
+  const processEnv = {
+    CLAUDE_CODE_USE_OPENAI: '1',
+  }
+
+  const env = await buildStartupEnvFromProfile({
+    persisted: profile('openai', {
+      OPENAI_API_KEY: 'sk-legacy',
+      OPENAI_MODEL: 'gpt-4o',
+      OPENAI_BASE_URL: 'https://api.openai.com/v1',
+    }),
+    processEnv,
+    hasConfiguredProviderProfile: true,
+  })
+
+  assert.notEqual(env, processEnv)
+  assert.equal(env.OPENAI_API_KEY, 'sk-legacy')
+  assert.equal(env.OPENAI_BASE_URL, 'https://api.openai.com/v1')
+  assert.equal(env.OPENAI_MODEL, 'gpt-4o')
+})
+
+test('buildStartupEnvFromProfile ignores falsey provider flags when deciding whether a configured profile already selected startup env', async () => {
+  const processEnv = {
+    CLAUDE_CODE_USE_OPENAI: '0',
+    OPENAI_BASE_URL: 'https://api.stale.example/v1',
+    OPENAI_MODEL: 'stale-model',
+  }
+
+  const env = await buildStartupEnvFromProfile({
+    persisted: profile('openai', {
+      OPENAI_API_KEY: 'sk-legacy',
+      OPENAI_MODEL: 'gpt-4o',
+      OPENAI_BASE_URL: 'https://api.openai.com/v1',
+    }),
+    processEnv,
+    hasConfiguredProviderProfile: true,
+  })
+
+  assert.notEqual(env, processEnv)
+  assert.equal(env.OPENAI_API_KEY, 'sk-legacy')
 })
 
 test('buildStartupEnvFromProfile treats explicit falsey provider flags as user intent', async () => {
@@ -1398,253 +1520,4 @@ test('atomic-chat launch ignores mismatched persisted openai env', async () => {
   assert.equal(env.OPENAI_API_KEY, undefined)
   assert.equal(env.CODEX_API_KEY, undefined)
   assert.equal(env.CHATGPT_ACCOUNT_ID, undefined)
-})
-
-// -- OpenRouter profile tests --
-
-test('isProviderProfile("openrouter") returns true', () => {
-  assert.equal(isProviderProfile('openrouter'), true)
-})
-
-test('buildOpenRouterProfileEnv emits OPENROUTER_API_KEY', () => {
-  const env = buildOpenRouterProfileEnv({
-    apiKey: 'sk-or-test',
-    processEnv: {},
-  })
-  assert.ok(env)
-  assert.equal(env!.OPENROUTER_API_KEY, 'sk-or-test')
-})
-
-test('buildOpenRouterProfileEnv emits OPENROUTER_BASE_URL when provided', () => {
-  const env = buildOpenRouterProfileEnv({
-    apiKey: 'sk-or-test',
-    baseUrl: 'https://custom.openrouter.ai/api/v1',
-    processEnv: {},
-  })
-  assert.ok(env)
-  assert.equal(env!.OPENROUTER_BASE_URL, 'https://custom.openrouter.ai/api/v1')
-})
-
-test('buildOpenRouterProfileEnv emits OPENROUTER_MODEL when provided', () => {
-  const env = buildOpenRouterProfileEnv({
-    apiKey: 'sk-or-test',
-    model: 'anthropic/claude-3-opus',
-    processEnv: {},
-  })
-  assert.ok(env)
-  assert.equal(env!.OPENROUTER_MODEL, 'anthropic/claude-3-opus')
-})
-
-test('buildOpenRouterProfileEnv does not emit OPENAI_API_KEY', () => {
-  const env = buildOpenRouterProfileEnv({
-    apiKey: 'sk-or-test',
-    processEnv: {},
-  })
-  assert.ok(env)
-  assert.equal(env!.OPENAI_API_KEY, undefined)
-})
-
-test('buildOpenRouterProfileEnv does not emit OPENAI_BASE_URL', () => {
-  const env = buildOpenRouterProfileEnv({
-    apiKey: 'sk-or-test',
-    processEnv: {},
-  })
-  assert.ok(env)
-  assert.equal(env!.OPENAI_BASE_URL, undefined)
-})
-
-test('buildOpenRouterProfileEnv does not emit OPENAI_MODEL', () => {
-  const env = buildOpenRouterProfileEnv({
-    apiKey: 'sk-or-test',
-    processEnv: {},
-  })
-  assert.ok(env)
-  assert.equal(env!.OPENAI_MODEL, undefined)
-})
-
-test('buildLaunchEnv supports openrouter', async () => {
-  const env = await buildLaunchEnv({
-    profile: 'openrouter',
-    persisted: profile('openrouter', {
-      OPENROUTER_API_KEY: 'sk-or-persisted',
-    }),
-    goal: 'balanced',
-    processEnv: {},
-  })
-  assert.equal(env.OPENROUTER_API_KEY, 'sk-or-persisted')
-  assert.ok(env.OPENROUTER_BASE_URL)
-  assert.ok(env.OPENROUTER_MODEL)
-})
-
-test('buildLaunchEnv openrouter ignores stale OPENAI_MODEL and OPENAI_BASE_URL from processEnv', async () => {
-  const env = await buildLaunchEnv({
-    profile: 'openrouter',
-    persisted: profile('openrouter', {
-      OPENROUTER_API_KEY: 'sk-or-test',
-    }),
-    goal: 'balanced',
-    processEnv: {
-      OPENAI_MODEL: 'gpt-4o',
-      OPENAI_BASE_URL: 'https://api.openai.com/v1',
-    },
-  })
-  assert.equal(env.OPENROUTER_API_KEY, 'sk-or-test')
-  assert.equal(env.OPENAI_MODEL, undefined)
-  assert.equal(env.OPENAI_BASE_URL, undefined)
-})
-
-test('buildLaunchEnv openrouter does not emit OPENAI_* vars', async () => {
-  const env = await buildLaunchEnv({
-    profile: 'openrouter',
-    persisted: profile('openrouter', {
-      OPENROUTER_API_KEY: 'sk-or-test',
-    }),
-    goal: 'balanced',
-    processEnv: {},
-  })
-  assert.equal(env.OPENAI_API_KEY, undefined)
-  assert.equal(env.OPENAI_BASE_URL, undefined)
-  assert.equal(env.OPENAI_MODEL, undefined)
-})
-
-// -- OpenRouter failure-oriented and regression tests --
-
-test('buildOpenRouterProfileEnv returns null with no apiKey and no processEnv.OPENROUTER_API_KEY', () => {
-  const env = buildOpenRouterProfileEnv({ processEnv: {} })
-  assert.equal(env, null)
-})
-
-test('buildOpenRouterProfileEnv returns null with empty-string apiKey and no processEnv key', () => {
-  const env = buildOpenRouterProfileEnv({ apiKey: '', processEnv: {} })
-  assert.equal(env, null)
-})
-
-test('buildOpenRouterProfileEnv uses processEnv.OPENROUTER_API_KEY when apiKey option is omitted', () => {
-  const env = buildOpenRouterProfileEnv({
-    processEnv: { OPENROUTER_API_KEY: 'sk-or-env-123' },
-  })
-  assert.ok(env)
-  assert.equal(env!.OPENROUTER_API_KEY, 'sk-or-env-123')
-})
-
-test('buildOpenRouterProfileEnv explicit apiKey wins over processEnv.OPENROUTER_API_KEY', () => {
-  const env = buildOpenRouterProfileEnv({
-    apiKey: 'sk-or-explicit',
-    processEnv: { OPENROUTER_API_KEY: 'sk-or-env' },
-  })
-  assert.ok(env)
-  assert.equal(env!.OPENROUTER_API_KEY, 'sk-or-explicit')
-})
-
-test('buildOpenRouterProfileEnv explicit model and baseUrl both win over processEnv values', () => {
-  const env = buildOpenRouterProfileEnv({
-    apiKey: 'sk-or-test',
-    model: 'explicit-model',
-    baseUrl: 'https://explicit.url/api/v1',
-    processEnv: {
-      OPENROUTER_MODEL: 'env-model',
-      OPENROUTER_BASE_URL: 'https://env.url/api/v1',
-    },
-  })
-  assert.ok(env)
-  assert.equal(env!.OPENROUTER_MODEL, 'explicit-model')
-  assert.equal(env!.OPENROUTER_BASE_URL, 'https://explicit.url/api/v1')
-})
-
-test('buildLaunchEnv openrouter ignores stale OPENAI_API_KEY from processEnv', async () => {
-  const env = await buildLaunchEnv({
-    profile: 'openrouter',
-    persisted: profile('openrouter', {
-      OPENROUTER_API_KEY: 'sk-or-test',
-    }),
-    goal: 'balanced',
-    processEnv: {
-      OPENAI_API_KEY: 'sk-openai-leak',
-      OPENAI_BASE_URL: 'https://leak.url',
-      OPENAI_MODEL: 'leak-model',
-    },
-  })
-  assert.equal(env.OPENAI_API_KEY, undefined)
-  assert.equal(env.OPENAI_BASE_URL, undefined)
-  assert.equal(env.OPENAI_MODEL, undefined)
-})
-
-test('buildLaunchEnv openrouter does not emit CLAUDE_CODE_USE_OPENAI', async () => {
-  const env = await buildLaunchEnv({
-    profile: 'openrouter',
-    persisted: profile('openrouter', {
-      OPENROUTER_API_KEY: 'sk-or-test',
-    }),
-    goal: 'balanced',
-    processEnv: {
-      CLAUDE_CODE_USE_OPENAI: '1',
-    },
-  })
-  assert.equal(env.CLAUDE_CODE_USE_OPENAI, undefined)
-})
-
-test('buildLaunchEnv openrouter sets CLAUDE_CODE_USE_OPENROUTER', async () => {
-  const env = await buildLaunchEnv({
-    profile: 'openrouter',
-    persisted: profile('openrouter', {
-      OPENROUTER_API_KEY: 'sk-or-test',
-    }),
-    goal: 'balanced',
-    processEnv: {},
-  })
-  assert.equal(env.CLAUDE_CODE_USE_OPENROUTER, '1')
-})
-
-test('buildOpenRouterProfileEnv apiKey-only options produce non-empty OPENROUTER_BASE_URL and OPENROUTER_MODEL defaults', () => {
-  const env = buildOpenRouterProfileEnv({
-    apiKey: 'sk-or-test',
-    processEnv: {},
-  })
-  assert.ok(env)
-  assert.ok(env!.OPENROUTER_BASE_URL, 'OPENROUTER_BASE_URL must have a fallback')
-  assert.ok(env!.OPENROUTER_MODEL, 'OPENROUTER_MODEL must have a fallback')
-})
-
-test('XAI profile behavior is unchanged by OpenRouter addition', async () => {
-  const env = await buildLaunchEnv({
-    profile: 'xai',
-    persisted: profile('xai', {
-      XAI_API_KEY: 'xai-test-key',
-    }),
-    goal: 'balanced',
-    processEnv: {},
-  })
-  assert.equal(env.XAI_API_KEY, 'xai-test-key')
-  assert.equal(env.OPENROUTER_API_KEY, undefined)
-  assert.equal(env.CLAUDE_CODE_USE_OPENROUTER, undefined)
-})
-
-test('OpenAI profile behavior is unchanged by OpenRouter addition', async () => {
-  const env = await buildLaunchEnv({
-    profile: 'openai',
-    persisted: profile('openai', {
-      OPENAI_API_KEY: 'sk-openai-test',
-    }),
-    goal: 'balanced',
-    processEnv: {},
-  })
-  assert.equal(env.OPENAI_API_KEY, 'sk-openai-test')
-  assert.equal(env.OPENROUTER_API_KEY, undefined)
-  assert.equal(env.CLAUDE_CODE_USE_OPENROUTER, undefined)
-})
-
-test('OPENROUTER_API_KEY is masked by redactSecretValueForDisplay', () => {
-  const apiKey = 'sk-or-secret-key-12345'
-  const result = redactSecretValueForDisplay(apiKey, {
-    OPENROUTER_API_KEY: apiKey,
-  })
-  assert.notEqual(result, apiKey, 'OPENROUTER_API_KEY must be masked, not returned as plaintext')
-})
-
-test('NVIDIA_API_KEY is masked by redactSecretValueForDisplay', () => {
-  const apiKey = 'nvapi-secret-key-67890'
-  const result = redactSecretValueForDisplay(apiKey, {
-    NVIDIA_API_KEY: apiKey,
-  })
-  assert.notEqual(result, apiKey, 'NVIDIA_API_KEY must be masked, not returned as plaintext')
 })
