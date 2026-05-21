@@ -233,10 +233,12 @@ describe('parseExportArgs', () => {
 
 describe('resolveExportFilepath', () => {
   test('resolves relative export filenames under the current working directory', () => {
-    expect(resolveExportFilepath('/work/project', 'transcript.md')).toBe('/work/project/transcript.md')
+    const result = resolveExportFilepath('/work/project', 'transcript.md')
+    expect(result.replace(/\\/g, '/')).toBe('/work/project/transcript.md')
   })
 
   test('preserves absolute export filenames', () => {
-    expect(resolveExportFilepath('/work/project', '/tmp/transcript.md')).toBe('/tmp/transcript.md')
+    const result = resolveExportFilepath('/work/project', '/tmp/transcript.md')
+    expect(result.replace(/\\/g, '/')).toBe('/tmp/transcript.md')
   })
 })

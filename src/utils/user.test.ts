@@ -61,8 +61,10 @@ function installCommonMocks(options?: {
 
   mock.module('./envUtils.js', () => ({
     ...realEnvUtils,
-    isEnvTruthy: (value: string | undefined) =>
-      !!value && value !== '0' && value.toLowerCase() !== 'false',
+    isEnvTruthy: (value: string | boolean | undefined) =>
+ !!value &&
+ value !== '0' &&
+ (typeof value === 'boolean' || ['1', 'true', 'yes', 'on'].includes(value.toLowerCase().trim())),
   }))
 
   mock.module('execa', () => ({

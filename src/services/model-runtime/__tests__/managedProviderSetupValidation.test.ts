@@ -6,13 +6,23 @@
 
 // and rejection of non-PR1 providers (Venice, xAI, MiniMax, Bankr).
 
-import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { describe, it, expect, mock, beforeEach } from 'bun:test'
 
-import {
-  buildRuntimeSetupInputFromProfile,
-  validateManagedProviderSetup,
+// Dynamic import with cache-busting to avoid mock.module() leaks from
+// ProviderManager.test.tsx (bun:test mock.module() is process-global and
+// mock.restore() does not fully undo it).
+async function importFreshValidationModule() {
+  return import(`../managedProviderSetupValidation.js?ts=${Date.now()}-${Math.random()}`)
+}
 
-} from '../managedProviderSetupValidation.js'
+let buildRuntimeSetupInputFromProfile: typeof import('../managedProviderSetupValidation.js').buildRuntimeSetupInputFromProfile
+let validateManagedProviderSetup: typeof import('../managedProviderSetupValidation.js').validateManagedProviderSetup
+
+beforeEach(async () => {
+  const mod = await importFreshValidationModule()
+  buildRuntimeSetupInputFromProfile = mod.buildRuntimeSetupInputFromProfile
+  validateManagedProviderSetup = mod.validateManagedProviderSetup
+})
 
 import type { ProviderProfile } from '../../../utils/config.js'
 

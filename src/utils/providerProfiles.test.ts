@@ -7,9 +7,6 @@ import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { acquireEnvMutex, releaseEnvMutex } from '../entrypoints/sdk/shared.js'
 import type { ProviderProfile } from './config.js'
 
-async function importFreshProvidersModule() {
-  return import(`./model/providers.ts?ts=${Date.now()}-${Math.random()}`)
-}
 
 const originalEnv = { ...process.env }
 const originalCwd = process.cwd()
@@ -212,14 +209,12 @@ function buildXiaomiMimoProfile(overrides: Partial<ProviderProfile> = {}): Provi
 
 describe('applyProviderProfileToProcessEnv', () => {
   test('openai profile clears competing gemini/github flags', async () => {
-    const { applyProviderProfileToProcessEnv } =
+    const { applyProviderProfileToProcessEnv, getAPIProvider } =
       await importFreshProviderProfileModules()
     process.env.CLAUDE_CODE_USE_GEMINI = '1'
     process.env.CLAUDE_CODE_USE_GITHUB = '1'
 
     applyProviderProfileToProcessEnv(buildProfile())
-    const { getAPIProvider: getFreshAPIProvider } =
-      await importFreshProvidersModule()
 
     expect(process.env.CLAUDE_CODE_USE_GEMINI).toBeUndefined()
     expect(process.env.CLAUDE_CODE_USE_GITHUB).toBeUndefined()
@@ -227,41 +222,37 @@ describe('applyProviderProfileToProcessEnv', () => {
     expect(process.env.CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED_ID).toBe(
       'provider_test',
     )
-    expect(getFreshAPIProvider()).toBe('openai')
+    expect(getAPIProvider()).toBe('openai')
   })
 
   test('mistral profile sets CLAUDE_CODE_USE_MISTRAL and clears openai flags', async () => {
-    const { applyProviderProfileToProcessEnv } =
+    const { applyProviderProfileToProcessEnv, getAPIProvider } =
       await importFreshProviderProfileModules()
     process.env.CLAUDE_CODE_USE_OPENAI = '1'
 
     applyProviderProfileToProcessEnv(buildMistralProfile())
-    const { getAPIProvider: getFreshAPIProvider } =
-      await importFreshProvidersModule()
 
     expect(process.env.CLAUDE_CODE_USE_MISTRAL).toBe('1')
     expect(process.env.CLAUDE_CODE_USE_OPENAI).toBeUndefined()
     expect(process.env.MISTRAL_MODEL).toBe('devstral-latest')
-    expect(getFreshAPIProvider()).toBe('mistral')
+    expect(getAPIProvider()).toBe('mistral')
   })
 
   test('gemini profile sets CLAUDE_CODE_USE_GEMINI and clears openai flags', async () => {
-    const { applyProviderProfileToProcessEnv } =
+    const { applyProviderProfileToProcessEnv, getAPIProvider } =
       await importFreshProviderProfileModules()
     process.env.CLAUDE_CODE_USE_OPENAI = '1'
 
     applyProviderProfileToProcessEnv(buildGeminiProfile())
-    const { getAPIProvider: getFreshAPIProvider } =
-      await importFreshProvidersModule()
 
     expect(process.env.CLAUDE_CODE_USE_GEMINI).toBe('1')
     expect(process.env.CLAUDE_CODE_USE_OPENAI).toBeUndefined()
     expect(process.env.GEMINI_MODEL).toBe('gemini-3-flash-preview')
-    expect(getFreshAPIProvider()).toBe('gemini')
+    expect(getAPIProvider()).toBe('gemini')
   })
 
   test('bedrock profile sets CLAUDE_CODE_USE_BEDROCK and preserves anthropic model routing', async () => {
-    const { applyProviderProfileToProcessEnv } =
+    const { applyProviderProfileToProcessEnv, getAPIProvider } =
       await importFreshProviderProfileModules()
     process.env.CLAUDE_CODE_USE_OPENAI = '1'
 
@@ -272,8 +263,6 @@ describe('applyProviderProfileToProcessEnv', () => {
         model: 'claude-sonnet-4-6',
       }),
     )
-    const { getAPIProvider: getFreshAPIProvider } =
-      await importFreshProvidersModule()
 
     expect(process.env.CLAUDE_CODE_USE_BEDROCK).toBe('1')
     expect(process.env.CLAUDE_CODE_USE_OPENAI).toBeUndefined()
@@ -281,11 +270,11 @@ describe('applyProviderProfileToProcessEnv', () => {
     expect(process.env.ANTHROPIC_BEDROCK_BASE_URL).toBe(
       'https://bedrock-proxy.example',
     )
-    expect(getFreshAPIProvider()).toBe('bedrock')
+    expect(getAPIProvider()).toBe('bedrock')
   })
 
   test('github profile sets CLAUDE_CODE_USE_GITHUB instead of generic openai mode', async () => {
-    const { applyProviderProfileToProcessEnv } =
+    const { applyProviderProfileToProcessEnv, getAPIProvider } =
       await importFreshProviderProfileModules()
     process.env.CLAUDE_CODE_USE_OPENAI = '1'
 
@@ -296,8 +285,6 @@ describe('applyProviderProfileToProcessEnv', () => {
         model: 'github:copilot',
       }),
     )
-    const { getAPIProvider: getFreshAPIProvider } =
-      await importFreshProvidersModule()
 
     expect(process.env.CLAUDE_CODE_USE_GITHUB).toBe('1')
     expect(process.env.CLAUDE_CODE_USE_OPENAI).toBeUndefined()
@@ -305,7 +292,7 @@ describe('applyProviderProfileToProcessEnv', () => {
       'https://models.github.ai/inference',
     )
     expect(process.env.OPENAI_MODEL).toBe('github:copilot')
-    expect(getFreshAPIProvider()).toBe('github')
+    expect(getAPIProvider()).toBe('github')
   })
 
   test('nvidia-nim profile keeps openai-compatible routing but stamps NVIDIA_NIM', async () => {
@@ -350,7 +337,7 @@ describe('applyProviderProfileToProcessEnv', () => {
   })
 
   test('anthropic profile clears competing gemini/github flags', async () => {
-    const { applyProviderProfileToProcessEnv } =
+    const { applyProviderProfileToProcessEnv, getAPIProvider } =
       await importFreshProviderProfileModules()
     process.env.CLAUDE_CODE_USE_GEMINI = '1'
     process.env.CLAUDE_CODE_USE_GITHUB = '1'
@@ -362,13 +349,11 @@ describe('applyProviderProfileToProcessEnv', () => {
         model: 'claude-sonnet-4-6',
       }),
     )
-    const { getAPIProvider: getFreshAPIProvider } =
-      await importFreshProvidersModule()
 
     expect(process.env.CLAUDE_CODE_USE_GEMINI).toBeUndefined()
     expect(process.env.CLAUDE_CODE_USE_GITHUB).toBeUndefined()
     expect(process.env.CLAUDE_CODE_USE_OPENAI).toBeUndefined()
-    expect(getFreshAPIProvider()).toBe('firstParty')
+    expect(getAPIProvider()).toBe('firstParty')
   })
 
   test('openai profile with multi-model string sets only first model in OPENAI_MODEL', async () => {
@@ -495,13 +480,11 @@ describe('applyProviderProfileToProcessEnv', () => {
   })
 
   test('venice profile applies OpenAI-compatible env with VENICE_API_KEY mirror', async () => {
-    const { applyProviderProfileToProcessEnv } =
+    const { applyProviderProfileToProcessEnv, getAPIProvider } =
       await importFreshProviderProfileModules()
     process.env.CLAUDE_CODE_USE_GEMINI = '1'
 
     applyProviderProfileToProcessEnv(buildVeniceProfile())
-    const { getAPIProvider: getFreshAPIProvider } =
-      await importFreshProvidersModule()
 
     expect(process.env.CLAUDE_CODE_USE_GEMINI).toBeUndefined()
     expect(String(process.env.CLAUDE_CODE_USE_OPENAI)).toBe('1')
@@ -509,17 +492,15 @@ describe('applyProviderProfileToProcessEnv', () => {
     expect(process.env.OPENAI_MODEL).toBe('venice-uncensored')
     expect(process.env.OPENAI_API_KEY).toBe('venice-test-key')
     expect(process.env.VENICE_API_KEY).toBe('venice-test-key')
-    expect(getFreshAPIProvider()).toBe('openai')
+    expect(getAPIProvider()).toBe('openai')
   })
 
   test('xiaomi mimo profile applies OpenAI-compatible env with MIMO_API_KEY mirror', async () => {
-    const { applyProviderProfileToProcessEnv } =
+    const { applyProviderProfileToProcessEnv, getAPIProvider } =
       await importFreshProviderProfileModules()
     process.env.CLAUDE_CODE_USE_GEMINI = '1'
 
     applyProviderProfileToProcessEnv(buildXiaomiMimoProfile())
-    const { getAPIProvider: getFreshAPIProvider } =
-      await importFreshProvidersModule()
 
     expect(process.env.CLAUDE_CODE_USE_GEMINI).toBeUndefined()
     expect(String(process.env.CLAUDE_CODE_USE_OPENAI)).toBe('1')
@@ -527,22 +508,20 @@ describe('applyProviderProfileToProcessEnv', () => {
     expect(process.env.OPENAI_MODEL).toBe('mimo-v2.5-pro')
     expect(process.env.OPENAI_API_KEY).toBe('mimo-test-key')
     expect(process.env.MIMO_API_KEY).toBe('mimo-test-key')
-    expect(getFreshAPIProvider()).toBe('xiaomi-mimo')
+    expect(getAPIProvider()).toBe('xiaomi-mimo')
   })
 
   test('xiaomi mimo profile normalizes stale docs endpoint to resolving API host', async () => {
-    const { applyProviderProfileToProcessEnv } =
+    const { applyProviderProfileToProcessEnv, getAPIProvider } =
       await importFreshProviderProfileModules()
 
     applyProviderProfileToProcessEnv(buildXiaomiMimoProfile({
       baseUrl: 'https://api.mimo-v2.com/v1',
     }))
-    const { getAPIProvider: getFreshAPIProvider } =
-      await importFreshProvidersModule()
 
     expect(process.env.OPENAI_BASE_URL).toBe('https://api.xiaomimimo.com/v1')
     expect(process.env.MIMO_API_KEY).toBe('mimo-test-key')
-    expect(getFreshAPIProvider()).toBe('xiaomi-mimo')
+    expect(getAPIProvider()).toBe('xiaomi-mimo')
   })
 
   test('legacy OpenAI profile on restricted route ignores advanced settings', async () => {
@@ -677,15 +656,13 @@ describe('applyProviderProfileToProcessEnv', () => {
   })
 
   test('xai profile sets XAI_API_KEY and getAPIProvider returns xai', async () => {
-    const { applyProviderProfileToProcessEnv } =
+    const { applyProviderProfileToProcessEnv, getAPIProvider } =
       await importFreshProviderProfileModules()
 
     applyProviderProfileToProcessEnv(buildXaiProfile())
-    const { getAPIProvider: getFreshAPIProvider } =
-      await importFreshProvidersModule()
 
     expect(String(process.env.XAI_API_KEY)).toBe('xai-test-key')
-    expect(getFreshAPIProvider()).toBe('xai')
+    expect(getAPIProvider()).toBe('xai')
   })
 })
 
